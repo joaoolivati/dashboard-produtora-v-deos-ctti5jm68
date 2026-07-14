@@ -3,37 +3,35 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart'
 import {
   Area,
-  AreaChart,
   CartesianGrid,
+  ComposedChart,
+  Line,
   XAxis,
   YAxis,
   ResponsiveContainer,
-  ReferenceLine,
 } from 'recharts'
 import { useDashboardContext } from '@/contexts/dashboard-context'
 import { Skeleton } from '@/components/ui/skeleton'
-import { formatCurrency } from '@/lib/utils'
+
+interface ChartPoint {
+  day: number
+  label: string
+  actual: number | null
+  projected: number | null
+}
 
 export function RevenueChart() {
   const { filteredData, loading } = useDashboardContext()
 
-  const chartData = useMemo(() => {
+  const chartData = useMemo<ChartPoint[]>(() => {
     if (!filteredData.length) return []
 
-    // Aggregate by date
-    const aggregated = filteredData.reduce(
-      (acc, curr) => {
-        const date = curr.dataDoServico
-        if (!acc[date]) {
-          acc[date] = 0
-        }
-        acc[date] += curr.valor
-        return acc
-      },
-      {} as Record<string, number>,
-    )
+    const aggregated: Record<string, number> = {}
+    filteredData.forEach((item) => {
+      const date = item.dataDoServico
+      aggregated[date] = (aggregated[date] || 0) + item.valor
+    })
 
-    // Sort by date (assuming DD/MM/YYYY format, simple split logic)
     const sortedDates = Object.keys(aggregated).sort((a, b) => {
       const [da, ma, ya] = a.split('/').map(Number)
       const [db, mb, yb] = b.split('/').map(Number)
@@ -43,38 +41,35 @@ export function RevenueChart() {
     })
 
     let cumulative = 0
-    const result = sortedDates.map((date) => {
+    const points: ChartPoint[] = sortedDates.map((date) => {
       cumulative += aggregated[date]
-      return {
-        date,
-        revenue: aggregated[date],
-        cumulative,
-      }
+      const day = parseInt(date.split('/')[0]) || 1
+      return { day, label: String(day), actual: cumulative, projected: null }
     })
 
-    // Calculate projection if we have dates
-    if (result.length > 0 && result.length < 31) {
-      const currentAvg = cumulative / result.length
-      const projectedTotal = currentAvg * 30 // Rough 30-day projection
-      result.push({
-        date: 'Projeção Mês',
-        revenue: 0,
-        cumulative: projectedTotal,
+    if (points.length === 0) return []
+
+    const dailyAvg = cumulative / points.length
+    const lastDay = points[points.length - 1].day
+    points[points.length - 1].projected = cumulative
+
+    let projectedCumulative = cumulative
+    for (let day = lastDay + 1; day <= 30; day++) {
+      projectedCumulative += dailyAvg
+      points.push({
+        day,
+        label: String(day),
+        actual: null,
+        projected: projectedCumulative,
       })
     }
 
-    return result
+    return points
   }, [filteredData])
 
   const chartConfig = {
-    cumulative: {
-      label: 'Acumulado',
-      color: 'hsl(var(--chart-1))',
-    },
-    revenue: {
-      label: 'Diário',
-      color: 'hsl(var(--chart-2))',
-    },
+    actual: { label: 'Realizado', color: 'hsl(var(--primary))' },
+    projected: { label: 'Projeção', color: 'hsl(var(--muted-foreground))' },
   }
 
   if (loading && filteredData.length === 0) {
@@ -98,22 +93,22 @@ export function RevenueChart() {
     >
       <CardHeader>
         <CardTitle className="font-bold tracking-tight">Evolução de Faturamento</CardTitle>
-        <CardDescription>Crescimento diário acumulado no mês selecionado</CardDescription>
+        <CardDescription>Receita acumulada realizada e projeção de fechamento</CardDescription>
       </CardHeader>
       <CardContent className="flex-1 min-h-[300px]">
         {chartData.length > 0 ? (
           <ChartContainer config={chartConfig} className="h-[300px] w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+              <ComposedChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                 <defs>
-                  <linearGradient id="fillCumulative" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="var(--color-cumulative)" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="var(--color-cumulative)" stopOpacity={0.0} />
+                  <linearGradient id="fillActual" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="var(--color-actual)" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="var(--color-actual)" stopOpacity={0.0} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
                 <XAxis
-                  dataKey="date"
+                  dataKey="label"
                   tickLine={false}
                   axisLine={false}
                   tickMargin={10}
@@ -122,7 +117,6 @@ export function RevenueChart() {
                     fontSize: 12,
                     fontFamily: 'var(--font-mono)',
                   }}
-                  tickFormatter={(val) => (val.includes('/') ? val.split('/')[0] : 'Proj')}
                 />
                 <YAxis
                   tickLine={false}
@@ -144,21 +138,24 @@ export function RevenueChart() {
                 />
                 <Area
                   type="monotone"
-                  dataKey="cumulative"
-                  stroke="var(--color-cumulative)"
+                  dataKey="actual"
+                  stroke="var(--color-actual)"
                   strokeWidth={3}
-                  fill="url(#fillCumulative)"
-                  activeDot={{ r: 6, strokeWidth: 0, fill: 'var(--color-cumulative)' }}
+                  fill="url(#fillActual)"
+                  activeDot={{ r: 6, strokeWidth: 0, fill: 'var(--color-actual)' }}
+                  connectNulls={false}
                 />
-                {chartData.length > 1 && (
-                  <ReferenceLine
-                    y={chartData[chartData.length - 1].cumulative}
-                    stroke="var(--color-cumulative)"
-                    strokeDasharray="3 3"
-                    opacity={0.5}
-                  />
-                )}
-              </AreaChart>
+                <Line
+                  type="monotone"
+                  dataKey="projected"
+                  stroke="var(--color-projected)"
+                  strokeWidth={2}
+                  strokeDasharray="5 5"
+                  dot={false}
+                  activeDot={{ r: 5, strokeWidth: 0, fill: 'var(--color-projected)' }}
+                  connectNulls={false}
+                />
+              </ComposedChart>
             </ResponsiveContainer>
           </ChartContainer>
         ) : (

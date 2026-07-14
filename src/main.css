@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -32,6 +34,7 @@
     --input: 214.3 31.8% 91.4%;
     --ring: 258 100% 60%;
 
+    --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
     --radius: 1.4rem;
 
     --chart-1: 258 100% 60%;

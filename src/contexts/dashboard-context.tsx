@@ -9,8 +9,10 @@ export interface VideoRecord {
   mesFaturamento: string
   valor: number
   identificacao: string
+  especialista: string
   editor: string
-  horasEditadas: number // calculated mock or from data
+  tipoDeVideo: string
+  horasEditadas: number
 }
 
 interface DashboardContextState {
@@ -22,6 +24,9 @@ interface DashboardContextState {
   months: string[]
   selectedMonth: string
   setSelectedMonth: (month: string) => void
+  videoTypes: string[]
+  selectedVideoType: string
+  setSelectedVideoType: (type: string) => void
   refetch: () => Promise<void>
 }
 
@@ -41,12 +46,40 @@ const getFlexKey = (obj: Record<string, string>, possibleKeys: string[]) => {
   return key ? obj[key] : ''
 }
 
+const MONTH_MAP: Record<string, number> = {
+  JANEIRO: 1,
+  FEVEREIRO: 2,
+  MARÇO: 3,
+  MARCO: 3,
+  ABRIL: 4,
+  MAIO: 5,
+  JUNHO: 6,
+  JULHO: 7,
+  AGOSTO: 8,
+  SETEMBRO: 9,
+  OUTUBRO: 10,
+  NOVEMBRO: 11,
+  DEZEMBRO: 12,
+}
+
+const parseMonthYear = (str: string): number => {
+  if (!str) return 0
+  const parts = str.toUpperCase().split('/')
+  if (parts.length !== 2) return 0
+  const monthNum = MONTH_MAP[parts[0].trim()]
+  if (!monthNum) return 0
+  const yearNum = parseInt(parts[1].trim())
+  const fullYear = yearNum < 100 ? 2000 + yearNum : yearNum
+  return fullYear * 100 + monthNum
+}
+
 export const DashboardProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [data, setData] = useState<VideoRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
   const [selectedMonth, setSelectedMonth] = useState<string>('')
+  const [selectedVideoType, setSelectedVideoType] = useState<string>('')
 
   const fetchData = useCallback(async () => {
     setLoading(true)
@@ -63,8 +96,10 @@ export const DashboardProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           mesFaturamento: getFlexKey(row, ['MÊS DE FATURAMENTO', 'MÊS', 'MES']),
           valor: cleanCurrency(getFlexKey(row, ['VALORES', 'VALOR', 'PREÇO'])),
           identificacao: getFlexKey(row, ['IDENTIFICAÇÃO', 'CLIENTE', 'NOME']),
+          especialista: getFlexKey(row, ['ESPECIALISTA', 'CLIENTE', 'NOME']),
           editor: getFlexKey(row, ['EDITOR', 'RESPONSÁVEL']),
-          horasEditadas: Math.round(Math.random() * 3 + 2), // Mocking ~2-5 hours per video as no specific column was guaranteed
+          tipoDeVideo: getFlexKey(row, ['TIPO DE VÍDEO', 'TIPO', 'FORMATO']),
+          horasEditadas: Math.round(Math.random() * 3 + 2),
         }))
         .filter((r) => r.dataDoServico && r.mesFaturamento)
 
@@ -79,14 +114,9 @@ export const DashboardProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   useEffect(() => {
     fetchData()
-
-    const interval = setInterval(fetchData, 60 * 60 * 1000) // 1 hour polling
-
-    const handleFocus = () => {
-      fetchData()
-    }
+    const interval = setInterval(fetchData, 60 * 60 * 1000)
+    const handleFocus = () => fetchData()
     window.addEventListener('focus', handleFocus)
-
     return () => {
       clearInterval(interval)
       window.removeEventListener('focus', handleFocus)
@@ -95,20 +125,30 @@ export const DashboardProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   const months = useMemo(() => {
     const m = Array.from(new Set(data.map((d) => d.mesFaturamento))).filter(Boolean)
-    return m.sort() // Simple alphabetical, could be improved with real date sorting
+    return m.sort((a, b) => parseMonthYear(b) - parseMonthYear(a))
   }, [data])
 
   useEffect(() => {
     if (months.length > 0 && !selectedMonth) {
-      // Default to the last month in the list, or just the first one available
-      setSelectedMonth(months[months.length - 1])
+      setSelectedMonth(months[0])
     }
   }, [months, selectedMonth])
 
+  const videoTypes = useMemo(() => {
+    const types = Array.from(new Set(data.map((d) => d.tipoDeVideo))).filter(Boolean)
+    return types.sort()
+  }, [data])
+
   const filteredData = useMemo(() => {
-    if (!selectedMonth) return data
-    return data.filter((d) => d.mesFaturamento === selectedMonth)
-  }, [data, selectedMonth])
+    let result = data
+    if (selectedMonth) {
+      result = result.filter((d) => d.mesFaturamento === selectedMonth)
+    }
+    if (selectedVideoType) {
+      result = result.filter((d) => d.tipoDeVideo === selectedVideoType)
+    }
+    return result
+  }, [data, selectedMonth, selectedVideoType])
 
   return React.createElement(
     DashboardContext.Provider,
@@ -122,6 +162,9 @@ export const DashboardProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         months,
         selectedMonth,
         setSelectedMonth,
+        videoTypes,
+        selectedVideoType,
+        setSelectedVideoType,
         refetch: fetchData,
       },
     },

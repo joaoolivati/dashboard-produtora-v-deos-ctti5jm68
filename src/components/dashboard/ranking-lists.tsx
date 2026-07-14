@@ -18,7 +18,7 @@ export function RankingLists() {
 
     filteredData.forEach((item) => {
       // Clients
-      const clientName = item.identificacao || 'Desconhecido'
+      const clientName = item.especialista || 'Desconhecido'
       clientMap.set(clientName, (clientMap.get(clientName) || 0) + item.valor)
 
       // Editors
@@ -79,9 +79,9 @@ export function RankingLists() {
         <CardHeader className="pb-3">
           <div className="flex items-center gap-2">
             <Trophy className="h-5 w-5 text-yellow-500" strokeWidth={1.5} />
-            <CardTitle className="text-lg font-bold tracking-tight">Top Clientes</CardTitle>
+            <CardTitle className="text-lg font-bold tracking-tight">Top Especialistas</CardTitle>
           </div>
-          <CardDescription>Os clientes que mais geraram receita no mês</CardDescription>
+          <CardDescription>Os especialistas que mais geraram receita no mês</CardDescription>
         </CardHeader>
         <CardContent className="p-0">
           <div className="flex flex-col">

@@ -1,7 +1,4 @@
 import type { Config } from 'tailwindcss'
-import animatePlugin from 'tailwindcss-animate'
-import typographyPlugin from '@tailwindcss/typography'
-import aspectRatioPlugin from '@tailwindcss/aspect-ratio'
 
 export default {
   darkMode: ['class'],
@@ -11,27 +8,16 @@ export default {
     './app/**/*.{ts,tsx}',
     './src/**/*.{ts,tsx}',
   ],
-  prefix: '',
   theme: {
     container: {
       center: true,
-      padding: '1.5rem',
-      screens: {
-        sm: '640px',
-        md: '768px',
-        lg: '1024px',
-        xl: '1280px',
-        '2xl': '1400px',
-      },
+      padding: '2rem',
+      screens: { '2xl': '1400px' },
     },
     extend: {
       fontFamily: {
-        sans: ['"Plus Jakarta Sans"', 'system-ui', 'sans-serif'],
-        mono: ['"IBM Plex Mono"', 'monospace'],
-        serif: ['Lora', 'serif'],
-      },
-      letterSpacing: {
-        tight: '-0.025em',
+        sans: ['Plus Jakarta Sans', 'sans-serif'],
+        mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'monospace'],
       },
       colors: {
         border: 'hsl(var(--border))',
@@ -81,9 +67,57 @@ export default {
         sm: 'calc(var(--radius) - 4px)',
       },
       boxShadow: {
-        premium: '0 2px 6px 0 rgba(0, 0, 0, 0.05), 0 4px 12px 0 rgba(0, 0, 0, 0.03)',
+        premium: '0 1px 3px 0 rgb(0 0 0 / 0.04), 0 1px 2px -1px rgb(0 0 0 / 0.04)',
+      },
+      keyframes: {
+        'fade-in': { '0%': { opacity: '0' }, '100%': { opacity: '1' } },
+        'fade-out': { '0%': { opacity: '1' }, '100%': { opacity: '0' } },
+        'fade-in-up': {
+          '0%': { opacity: '0', transform: 'translateY(10px)' },
+          '100%': { opacity: '1', transform: 'translateY(0)' },
+        },
+        'fade-in-down': {
+          '0%': { opacity: '0', transform: 'translateY(-10px)' },
+          '100%': { opacity: '1', transform: 'translateY(0)' },
+        },
+        'fade-out-up': {
+          '0%': { opacity: '1', transform: 'translateY(0)' },
+          '100%': { opacity: '0', transform: 'translateY(-10px)' },
+        },
+        'fade-out-down': {
+          '0%': { opacity: '1', transform: 'translateY(0)' },
+          '100%': { opacity: '0', transform: 'translateY(10px)' },
+        },
+        'slide-up': {
+          '0%': { transform: 'translateY(100%)' },
+          '100%': { transform: 'translateY(0)' },
+        },
+        'slide-down': {
+          '0%': { transform: 'translateY(0)' },
+          '100%': { transform: 'translateY(100%)' },
+        },
+        float: {
+          '0%, 100%': { transform: 'translateY(0)' },
+          '50%': { transform: 'translateY(-6px)' },
+        },
+        spotlight: {
+          '0%': { opacity: '0' },
+          '100%': { opacity: '0.5' },
+        },
+      },
+      animation: {
+        'fade-in': 'fade-in 0.3s ease-out',
+        'fade-out': 'fade-out 0.3s ease-out',
+        'fade-in-up': 'fade-in-up 0.4s ease-out',
+        'fade-in-down': 'fade-in-down 0.4s ease-out',
+        'fade-out-up': 'fade-out-up 0.3s ease-out',
+        'fade-out-down': 'fade-out-down 0.3s ease-out',
+        'slide-up': 'slide-up 0.3s ease-out',
+        'slide-down': 'slide-down 0.3s ease-out',
+        float: 'float 3s ease-in-out infinite',
+        spotlight: 'spotlight 0.5s ease-out',
       },
     },
   },
-  plugins: [animatePlugin, typographyPlugin, aspectRatioPlugin],
+  plugins: [require('tailwindcss-animate'), require('@tailwindcss/typography')],
 } satisfies Config

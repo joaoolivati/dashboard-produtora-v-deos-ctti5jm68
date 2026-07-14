@@ -1,6 +1,7 @@
 import { SummaryCards } from '@/components/dashboard/summary-cards'
 import { RevenueChart } from '@/components/dashboard/revenue-chart'
 import { RankingLists } from '@/components/dashboard/ranking-lists'
+import { ProjectionCard } from '@/components/dashboard/projection-card'
 
 export default function Index() {
   return (
@@ -11,7 +12,8 @@ export default function Index() {
         <div className="lg:col-span-8">
           <RevenueChart />
         </div>
-        <div className="lg:col-span-4">
+        <div className="lg:col-span-4 flex flex-col gap-6">
+          <ProjectionCard />
           <RankingLists />
         </div>
       </div>

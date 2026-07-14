@@ -8,39 +8,62 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { RefreshCcw, Clapperboard } from 'lucide-react'
+import { RefreshCcw, Clapperboard, Video } from 'lucide-react'
 import { format } from 'date-fns'
 
 export default function Layout() {
-  const { months, selectedMonth, setSelectedMonth, lastUpdated, loading, refetch } =
-    useDashboardContext()
+  const {
+    months,
+    selectedMonth,
+    setSelectedMonth,
+    videoTypes,
+    selectedVideoType,
+    setSelectedVideoType,
+    lastUpdated,
+    loading,
+    refetch,
+  } = useDashboardContext()
 
   return (
     <div className="min-h-screen bg-background flex flex-col font-sans">
       <header className="sticky top-0 z-30 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 shadow-sm">
-        <div className="container flex h-16 items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Clapperboard className="h-6 w-6 text-primary" strokeWidth={1.5} />
+        <div className="container flex h-16 items-center justify-between gap-2">
+          <div className="flex items-center gap-3">
+            <Clapperboard className="h-6 w-6 text-primary shrink-0" strokeWidth={1.5} />
             <h1 className="font-sans text-lg font-bold tracking-tight text-foreground hidden sm:block">
               Production Analytics
             </h1>
           </div>
 
-          <div className="flex items-center gap-2 sm:gap-4">
-            <div className="flex items-center gap-1.5 text-xs text-muted-foreground mr-2 hidden md:flex">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground mr-1 hidden lg:flex">
               <RefreshCcw
                 className={`h-3 w-3 ${loading ? 'animate-spin' : ''}`}
                 strokeWidth={1.5}
               />
               <span>
-                Última atualização: hoje às{' '}
-                {lastUpdated ? `${format(lastUpdated, 'HH:mm')}h` : '--:--h'}
+                Última atualização: {lastUpdated ? format(lastUpdated, 'dd/MM HH:mm') : '--:--'}
               </span>
             </div>
 
+            <Select value={selectedVideoType} onValueChange={setSelectedVideoType}>
+              <SelectTrigger className="w-[130px] sm:w-[160px] rounded-full bg-muted/50 border-transparent hover:bg-muted font-medium transition-colors">
+                <Video className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" strokeWidth={1.5} />
+                <SelectValue placeholder="Tipo de Vídeo" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos os tipos</SelectItem>
+                {videoTypes.map((vt) => (
+                  <SelectItem key={vt} value={vt}>
+                    {vt}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
             <Select value={selectedMonth} onValueChange={setSelectedMonth} disabled={loading}>
-              <SelectTrigger className="w-[160px] sm:w-[200px] rounded-full bg-muted/50 border-transparent hover:bg-muted font-medium transition-colors">
-                <SelectValue placeholder="Mês de Faturamento" />
+              <SelectTrigger className="w-[130px] sm:w-[180px] rounded-full bg-muted/50 border-transparent hover:bg-muted font-medium transition-colors">
+                <SelectValue placeholder="Mês" />
               </SelectTrigger>
               <SelectContent>
                 {months.length === 0 && (
