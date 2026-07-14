@@ -71,6 +71,9 @@ routerAdd(
     csvText = csvText.replace(/^\uFEFF/, '').replace(/\u0000/g, '')
 
     $app.logger().info('sync_pull_sheets: received CSV payload', 'csvTextLength', csvText.length)
+    $app
+      .logger()
+      .info('sync_pull_sheets: raw CSV first 500 chars', 'preview', csvText.slice(0, 500))
 
     if (
       csvText.indexOf('<!DOCTYPE') > -1 ||
@@ -88,12 +91,34 @@ routerAdd(
     let row = []
     let currentVal = ''
     let inQuotes = false
-    const str = csvText.replace(/\r\n/g, '\n').replace(/\r/g, '\n')
+    const MAX_FIELD_LENGTH = 100000
+
+    const str = csvText
+      .replace(/\r\n/g, '\n')
+      .replace(/\r/g, '\n')
+      .replace(/\u2028/g, '\n')
+      .replace(/\u2029/g, '\n')
+      .replace(/\u0085/g, '\n')
+      .replace(/\u000B/g, '\n')
+      .replace(/\u000C/g, '\n')
 
     for (let i = 0; i < str.length; i++) {
       const char = str[i]
       if (inQuotes) {
-        if (char === '"') {
+        if (currentVal.length > MAX_FIELD_LENGTH) {
+          inQuotes = false
+          if (char === ',') {
+            row.push(currentVal.trim())
+            currentVal = ''
+          } else if (char === '\n') {
+            row.push(currentVal.trim())
+            if (row.some((v) => v)) rows.push(row)
+            row = []
+            currentVal = ''
+          } else {
+            currentVal += char
+          }
+        } else if (char === '"') {
           if (str[i + 1] === '"') {
             currentVal += '"'
             i++
@@ -121,7 +146,6 @@ routerAdd(
     }
     row.push(currentVal.trim())
     if (row.some((v) => v)) rows.push(row)
-
     $app.logger().info('sync_pull_sheets: parsed CSV rows', 'totalLines', rows.length)
 
     if (rows.length < 2) {
