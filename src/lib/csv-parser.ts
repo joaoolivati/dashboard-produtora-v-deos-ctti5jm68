@@ -4,27 +4,35 @@ export function parseCSV(csvString: string): Record<string, string>[] {
   let currentVal = ''
   let inQuotes = false
 
-  const str = csvString.replace(/\r\n/g, '\n')
+  const str = csvString.replace(/\r\n/g, '\n').replace(/\r/g, '\n')
 
   for (let i = 0; i < str.length; i++) {
     const char = str[i]
-    if (char === '"') {
-      if (str[i + 1] === '"') {
-        currentVal += '"'
-        i++
+    if (inQuotes) {
+      if (char === '"') {
+        if (str[i + 1] === '"') {
+          currentVal += '"'
+          i++
+        } else {
+          inQuotes = false
+        }
       } else {
-        inQuotes = !inQuotes
+        currentVal += char
       }
-    } else if (char === ',' && !inQuotes) {
-      row.push(currentVal.trim())
-      currentVal = ''
-    } else if (char === '\n' && !inQuotes) {
-      row.push(currentVal.trim())
-      if (row.some((v) => v)) rows.push(row)
-      row = []
-      currentVal = ''
     } else {
-      currentVal += char
+      if (char === '"') {
+        inQuotes = true
+      } else if (char === ',') {
+        row.push(currentVal.trim())
+        currentVal = ''
+      } else if (char === '\n') {
+        row.push(currentVal.trim())
+        if (row.some((v) => v)) rows.push(row)
+        row = []
+        currentVal = ''
+      } else {
+        currentVal += char
+      }
     }
   }
   row.push(currentVal.trim())

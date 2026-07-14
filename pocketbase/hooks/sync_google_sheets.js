@@ -1,7 +1,7 @@
 cronAdd('sync_google_sheets', '0 * * * *', () => {
   const CSV_URL =
     'https://docs.google.com/spreadsheets/d/1buDNmxDKscXwe7iGNSwYEAVcm7646dsPpMHTSPyYg-I/gviz/tq?tqx=out:csv&sheet=BASE_GERAL'
-  const HTTP_TIMEOUT = 120
+  const HTTP_TIMEOUT = 300
 
   $app.logger().info('sync_google_sheets: starting hourly sync')
 
@@ -48,25 +48,17 @@ cronAdd('sync_google_sheets', '0 * * * *', () => {
   }
 
   let csvText = ''
-  try {
-    if (!res.body) {
-      logSync('error', 0, 0, 'Empty response body from Google Sheets')
-      return
-    }
-    if (typeof res.body === 'string') {
-      csvText = res.body
-    } else {
-      try {
-        csvText = new TextDecoder().decode(res.body)
-      } catch (_) {
-        csvText = String(res.body)
-      }
-    }
-  } catch (err) {
-    $app.logger().error('sync_google_sheets: failed to decode body', 'error', String(err))
-    logSync('error', 0, 0, 'Failed to decode response: ' + String(err))
+  if (!res.body) {
+    logSync('error', 0, 0, 'Empty response body from Google Sheets')
     return
   }
+  if (typeof res.body === 'string') {
+    csvText = res.body
+  } else {
+    csvText = String(res.body)
+  }
+
+  $app.logger().info('sync_google_sheets: received CSV payload', 'csvTextLength', csvText.length)
 
   if (
     csvText.indexOf('<!DOCTYPE') > -1 ||
@@ -85,27 +77,37 @@ cronAdd('sync_google_sheets', '0 * * * *', () => {
 
   for (let i = 0; i < str.length; i++) {
     const char = str[i]
-    if (char === '"') {
-      if (str[i + 1] === '"') {
-        currentVal += '"'
-        i++
+    if (inQuotes) {
+      if (char === '"') {
+        if (str[i + 1] === '"') {
+          currentVal += '"'
+          i++
+        } else {
+          inQuotes = false
+        }
       } else {
-        inQuotes = !inQuotes
+        currentVal += char
       }
-    } else if (char === ',' && !inQuotes) {
-      row.push(currentVal.trim())
-      currentVal = ''
-    } else if (char === '\n' && !inQuotes) {
-      row.push(currentVal.trim())
-      if (row.some((v) => v)) rows.push(row)
-      row = []
-      currentVal = ''
     } else {
-      currentVal += char
+      if (char === '"') {
+        inQuotes = true
+      } else if (char === ',') {
+        row.push(currentVal.trim())
+        currentVal = ''
+      } else if (char === '\n') {
+        row.push(currentVal.trim())
+        if (row.some((v) => v)) rows.push(row)
+        row = []
+        currentVal = ''
+      } else {
+        currentVal += char
+      }
     }
   }
   row.push(currentVal.trim())
   if (row.some((v) => v)) rows.push(row)
+
+  $app.logger().info('sync_google_sheets: parsed CSV rows', 'totalLines', rows.length)
 
   if (rows.length < 2) {
     $app.logger().warn('sync_google_sheets: CSV has no data rows')
