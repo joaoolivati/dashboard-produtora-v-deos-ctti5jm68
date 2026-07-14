@@ -1,7 +1,8 @@
 import { useMemo } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { useDashboardContext } from '@/contexts/dashboard-context'
-import { formatCurrency, formatNumber } from '@/lib/utils'
+import { formatNumber } from '@/lib/utils'
+import { usePrivacy } from '@/contexts/privacy-context'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Separator } from '@/components/ui/separator'
@@ -9,6 +10,7 @@ import { Trophy, Award } from 'lucide-react'
 
 export function RankingLists() {
   const { filteredData, loading } = useDashboardContext()
+  const { formatCurrency } = usePrivacy()
 
   const { clientRanking, editorRanking } = useMemo(() => {
     if (!filteredData.length) return { clientRanking: [], editorRanking: [] }

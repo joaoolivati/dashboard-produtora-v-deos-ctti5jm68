@@ -1,12 +1,14 @@
 import { useMemo } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { formatCurrency, formatNumber } from '@/lib/utils'
+import { formatNumber } from '@/lib/utils'
+import { usePrivacy } from '@/contexts/privacy-context'
 import { useDashboardContext } from '@/contexts/dashboard-context'
 import { Video, DollarSign, Target, Clock } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
 
 export function SummaryCards() {
   const { filteredData, loading } = useDashboardContext()
+  const { formatCurrency } = usePrivacy()
 
   const metrics = useMemo(() => {
     const totalVideos = filteredData.length

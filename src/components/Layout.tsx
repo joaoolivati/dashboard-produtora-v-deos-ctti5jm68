@@ -1,5 +1,6 @@
 import { Outlet } from 'react-router-dom'
 import { ThemeToggle } from './ThemeToggle'
+import { PrivacyToggle } from './PrivacyToggle'
 import { useDashboardContext } from '@/contexts/dashboard-context'
 import { useAuth } from '@/hooks/use-auth'
 import {
@@ -97,6 +98,7 @@ export default function Layout() {
               <LogOut className="h-4 w-4" strokeWidth={1.5} />
             </Button>
 
+            <PrivacyToggle />
             <ThemeToggle />
           </div>
         </div>

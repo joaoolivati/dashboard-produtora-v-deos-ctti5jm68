@@ -17,27 +17,29 @@ applyCssRulesSecurityPatch()
 const App = () => (
   <ThemeProvider defaultTheme="system" storageKey="dashboard-theme">
     <AuthProvider>
-      <BrowserRouter>
-        <TooltipProvider>
-          <Toaster />
-          <Sonner />
-          <Routes>
-            <Route path="/login" element={<Login />} />
-            <Route element={<ProtectedRoute />}>
-              <Route
-                element={
-                  <DashboardProvider>
-                    <Layout />
-                  </DashboardProvider>
-                }
-              >
-                <Route path="/" element={<Index />} />
+      <PrivacyProvider>
+        <BrowserRouter>
+          <TooltipProvider>
+            <Toaster />
+            <Sonner />
+            <Routes>
+              <Route path="/login" element={<Login />} />
+              <Route element={<ProtectedRoute />}>
+                <Route
+                  element={
+                    <DashboardProvider>
+                      <Layout />
+                    </DashboardProvider>
+                  }
+                >
+                  <Route path="/" element={<Index />} />
+                </Route>
               </Route>
-            </Route>
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </TooltipProvider>
-      </BrowserRouter>
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </TooltipProvider>
+        </BrowserRouter>
+      </PrivacyProvider>
     </AuthProvider>
   </ThemeProvider>
 )

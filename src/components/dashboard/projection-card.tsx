@@ -5,10 +5,11 @@ import { Separator } from '@/components/ui/separator'
 import { TrendingUp } from 'lucide-react'
 import { useDashboardContext } from '@/contexts/dashboard-context'
 import { computePrediction } from '@/lib/prediction'
-import { formatCurrency } from '@/lib/utils'
+import { usePrivacy } from '@/contexts/privacy-context'
 
 export function ProjectionCard() {
   const { filteredData, data, loading, selectedMonth } = useDashboardContext()
+  const { formatCurrency } = usePrivacy()
 
   const projection = useMemo(() => {
     if (!filteredData.length) return { total: 0, dailyAvg: 0, projected: 0, daysElapsed: 0 }

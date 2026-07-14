@@ -13,7 +13,7 @@ import {
 import { useDashboardContext } from '@/contexts/dashboard-context'
 import { Skeleton } from '@/components/ui/skeleton'
 import { generatePrediction } from '@/lib/prediction'
-import { formatCurrency } from '@/lib/utils'
+import { usePrivacy } from '@/contexts/privacy-context'
 
 const chartConfig = {
   actual: { label: 'Realizado', color: 'hsl(var(--chart-4))' },
@@ -22,6 +22,7 @@ const chartConfig = {
 
 export function RevenueChart() {
   const { filteredData, data, loading, selectedMonth } = useDashboardContext()
+  const { isPrivacyMode, formatCurrency } = usePrivacy()
 
   const chartData = useMemo(
     () => generatePrediction(filteredData, data, selectedMonth),
@@ -82,7 +83,7 @@ export function RevenueChart() {
                     fontSize: 12,
                     fontFamily: 'var(--font-mono)',
                   }}
-                  tickFormatter={(v) => `R$ ${v / 1000}k`}
+                  tickFormatter={(v) => (isPrivacyMode ? '•••' : `R$ ${v / 1000}k`)}
                 />
                 <ChartTooltip
                   cursor={{
