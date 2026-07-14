@@ -99,92 +99,69 @@ routerAdd(
       })
     }
 
-    var stripAccents = (str) => {
-      return str
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '')
-        .replace(/ñ/g, 'n')
+    var parseDate = (raw) => {
+      var d = (raw || '').toString().trim()
+      if (!d) return '2000-01-01 12:00:00'
+      var parts = d.split(/[\/\-]/)
+      if (parts.length === 3) {
+        var day = parts[0].padStart(2, '0')
+        var month = parts[1].padStart(2, '0')
+        var year = parts[2]
+        if (year.length === 2) year = '20' + year
+        return year + '-' + month + '-' + day + ' 12:00:00'
+      }
+      return '2000-01-01 12:00:00'
     }
 
-    var FIELD_ALIASES = {
-      data_servico: ['data_servico', 'data_do_servico', 'data', 'data_servico'],
-      especialista: ['especialista', 'especialista_responsavel', 'responsavel'],
-      tipo_video: [
-        'tipo_video',
-        'tipo_de_video',
-        'tipo_de_servico',
-        'tipo_servico',
-        'tipo',
-        'servico',
-      ],
-      identificacao: ['identificacao', 'identificacao_do_video', 'id_video', 'codigo'],
-      video_bruto: ['video_bruto', 'tempo_bruto', 'duracao_bruta', 'bruto'],
-      video_editado: ['video_editado', 'tempo_editado', 'duracao_editada', 'editado'],
-      valores: ['valores', 'valor', 'preco', 'custo', 'valor_servico'],
-      observacoes: ['observacoes', 'observacao', 'obs', 'notas', 'nota'],
-      editor: ['editor', 'editor_responsavel', 'responsavel_edicao'],
-      mes_faturamento: ['mes_faturamento', 'mes_de_faturamento', 'faturamento', 'mes'],
+    var parseValores = (raw) => {
+      if (typeof raw === 'number') return raw
+      var v = (raw || '0').toString().trim()
+      v = v
+        .replace(/R\$/gi, '')
+        .replace(/\s/g, '')
+        .replace(/[^\d.,-]/g, '')
+      if (!v) return 0
+      if (v.indexOf(',') > -1 && v.indexOf('.') > -1) {
+        v = v.replace(/\./g, '').replace(',', '.')
+      } else if (v.indexOf(',') > -1) {
+        v = v.replace(',', '.')
+      }
+      var n = parseFloat(v)
+      return isNaN(n) ? 0 : n
     }
 
-    var aliasToField = {}
-    Object.keys(FIELD_ALIASES).forEach(function (field) {
-      aliasToField[field] = field
-      FIELD_ALIASES[field].forEach(function (alias) {
-        aliasToField[alias] = field
+    var cellStr = (row, idx) => {
+      if (!row || idx >= row.length) return ''
+      var val = row[idx]
+      if (val === undefined || val === null) return ''
+      return String(val).trim()
+    }
+
+    var dataRows = []
+    for (var i = 1; i < values.length; i++) {
+      var row = values[i]
+      var isEmpty = true
+      for (var c = 0; c < Math.min(row.length, 10); c++) {
+        if (cellStr(row, c)) {
+          isEmpty = false
+          break
+        }
+      }
+      if (isEmpty) continue
+
+      dataRows.push({
+        data_servico: cellStr(row, 0),
+        especialista: cellStr(row, 1),
+        tipo_video: cellStr(row, 2),
+        identificacao: cellStr(row, 3),
+        video_bruto: cellStr(row, 4),
+        video_editado: cellStr(row, 5),
+        valores: cellStr(row, 6),
+        observacoes: cellStr(row, 7),
+        editor: cellStr(row, 8),
+        mes_faturamento: cellStr(row, 9),
       })
-    })
-
-    var normalizeHeader = (rawHeader) => {
-      var normalized = stripAccents(String(rawHeader || ''))
-        .toLowerCase()
-        .trim()
-        .replace(/[^a-z0-9\s]/g, '')
-        .replace(/\s+/g, '_')
-      return aliasToField[normalized] || normalized
     }
-
-    var headers = values[0].map(normalizeHeader)
-
-    $app.logger().info('sync_pull_sheets: normalized headers', 'headers', JSON.stringify(headers))
-
-    var REQUIRED_FIELDS = [
-      'data_servico',
-      'especialista',
-      'tipo_video',
-      'identificacao',
-      'video_bruto',
-      'video_editado',
-      'valores',
-      'observacoes',
-      'editor',
-      'mes_faturamento',
-    ]
-
-    var missingFields = REQUIRED_FIELDS.filter(function (f) {
-      return headers.indexOf(f) === -1
-    })
-    if (missingFields.length > 0) {
-      $app
-        .logger()
-        .warn(
-          'sync_pull_sheets: some fields not found in spreadsheet headers',
-          'missingFields',
-          JSON.stringify(missingFields),
-          'headersFound',
-          JSON.stringify(headers),
-        )
-    }
-
-    var dataRows = values.slice(1).map((row) => {
-      var obj = {}
-      headers.forEach((h, i) => {
-        obj[h] = row[i] !== undefined ? String(row[i]) : ''
-      })
-      REQUIRED_FIELDS.forEach(function (f) {
-        if (!(f in obj)) obj[f] = ''
-      })
-      return obj
-    })
 
     const dedupedMap = {}
     const dedupedKeys = []
@@ -217,68 +194,27 @@ routerAdd(
       return e.json(500, { error: 'servicos collection not found', status: 'error' })
     }
 
-    const existingMap = {}
-    let mapOffset = 0
+    $app.logger().info('sync_pull_sheets: clearing existing servicos records')
+    var deleteOffset = 0
     while (true) {
-      let existingBatch
+      var batch
       try {
-        existingBatch = $app.findRecordsByFilter('servicos', "id != ''", 'created', 500, mapOffset)
+        batch = $app.findRecordsByFilter('servicos', "id != ''", 'created', 500, deleteOffset)
       } catch (_) {
         break
       }
-      if (existingBatch.length === 0) break
-      for (let i = 0; i < existingBatch.length; i++) {
-        const ident = existingBatch[i].getString('identificacao')
-        if (ident) existingMap[ident] = existingBatch[i].id
+      if (batch.length === 0) break
+      for (var di = 0; di < batch.length; di++) {
+        try {
+          $app.delete(batch[di])
+        } catch (_) {}
       }
-      mapOffset += 500
+      if (batch.length < 500) break
     }
-
-    $app
-      .logger()
-      .info(
-        'sync_pull_sheets: built existing map',
-        'existingCount',
-        Object.keys(existingMap).length,
-      )
+    $app.logger().info('sync_pull_sheets: collection cleared')
 
     let saved = 0
     let errorCount = 0
-
-    const parseDate = (raw) => {
-      var d = (raw || '').toString().trim()
-      if (!d) return new Date().toISOString().slice(0, 10)
-
-      var parts = d.split(/[\/\-]/)
-      if (parts.length === 3) {
-        var day = parts[0].padStart(2, '0')
-        var month = parts[1].padStart(2, '0')
-        var year = parts[2]
-        if (year.length === 2) year = '20' + year
-        return year + '-' + month + '-' + day
-      }
-
-      var parsed = new Date(d)
-      if (!isNaN(parsed.getTime())) {
-        return parsed.toISOString().slice(0, 10)
-      }
-
-      return new Date().toISOString().slice(0, 10)
-    }
-
-    const parseValores = (raw) => {
-      if (typeof raw === 'number') return raw
-      var v = (raw || '0').toString().trim()
-      v = v.replace(/R\$/gi, '').replace(/[^\d.,-]/g, '')
-      if (!v) return 0
-      if (v.indexOf(',') > -1 && v.indexOf('.') > -1) {
-        v = v.replace(/\./g, '').replace(',', '.')
-      } else if (v.indexOf(',') > -1) {
-        v = v.replace(',', '.')
-      }
-      var n = parseFloat(v)
-      return isNaN(n) ? 0 : n
-    }
 
     try {
       for (let i = 0; i < totalRecords; i += BATCH_SIZE) {
@@ -291,33 +227,20 @@ routerAdd(
             for (let k = j; k < txEnd; k++) {
               try {
                 const d = dedupedRows[k]
-                const ident = (d['identificacao'] || '').trim()
+                const record = new Record(col)
 
-                let record
-                if (ident && existingMap[ident]) {
-                  try {
-                    record = txApp.findRecordById('servicos', existingMap[ident])
-                  } catch (_) {
-                    record = new Record(col)
-                  }
-                } else {
-                  record = new Record(col)
-                }
-
-                record.set('identificacao', ident)
                 record.set('data_servico', parseDate(d['data_servico']))
-                record.set('valores', parseValores(d['valores']))
-                record.set('tipo_video', d['tipo_video'] || '')
                 record.set('especialista', d['especialista'] || '')
-                record.set('observacoes', d['observacoes'] || '')
-                record.set('mes_faturamento', d['mes_faturamento'] || '')
+                record.set('tipo_video', d['tipo_video'] || '')
+                record.set('identificacao', d['identificacao'] || '')
                 record.set('video_bruto', d['video_bruto'] || '')
                 record.set('video_editado', d['video_editado'] || '')
+                record.set('valores', parseValores(d['valores']))
+                record.set('observacoes', d['observacoes'] || '')
                 record.set('editor', d['editor'] || '')
+                record.set('mes_faturamento', d['mes_faturamento'] || '')
 
                 txApp.saveNoValidate(record)
-
-                if (ident && record.id) existingMap[ident] = record.id
                 saved++
               } catch (recordErr) {
                 errorCount++
@@ -373,8 +296,8 @@ routerAdd(
         status: 'success',
       })
     } catch (err) {
-      $app.logger().error('sync_pull_sheets: upsert failed', 'error', String(err))
-      logSync('error', totalRecords, saved, 'Upsert failed: ' + String(err))
+      $app.logger().error('sync_pull_sheets: import failed', 'error', String(err))
+      logSync('error', totalRecords, saved, 'Import failed: ' + String(err))
       return e.json(500, {
         error: 'Sync failed, partial data may exist',
         rowsRead: totalRecords,
