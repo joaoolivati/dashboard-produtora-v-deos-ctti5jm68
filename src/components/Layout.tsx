@@ -9,7 +9,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { RefreshCcw, Clapperboard, Video } from 'lucide-react'
-import { format } from 'date-fns'
+import { format, isToday } from 'date-fns'
 
 export default function Layout() {
   const {
@@ -42,7 +42,12 @@ export default function Layout() {
                 strokeWidth={1.5}
               />
               <span>
-                Última atualização: {lastUpdated ? format(lastUpdated, 'dd/MM HH:mm') : '--:--'}
+                Última atualização:{' '}
+                {lastUpdated
+                  ? isToday(lastUpdated)
+                    ? `hoje às ${format(lastUpdated, 'HH:mm')}h`
+                    : `${format(lastUpdated, 'dd/MM às HH:mm')}h`
+                  : '--:--'}
               </span>
             </div>
 

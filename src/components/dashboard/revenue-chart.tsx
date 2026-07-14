@@ -68,8 +68,8 @@ export function RevenueChart() {
   }, [filteredData])
 
   const chartConfig = {
-    actual: { label: 'Realizado', color: 'hsl(var(--primary))' },
-    projected: { label: 'Projeção', color: 'hsl(var(--muted-foreground))' },
+    actual: { label: 'Realizado', color: 'hsl(var(--chart-2))' },
+    projected: { label: 'Projeção', color: 'hsl(var(--chart-5))' },
   }
 
   if (loading && filteredData.length === 0) {

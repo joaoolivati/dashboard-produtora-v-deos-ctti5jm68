@@ -79,7 +79,7 @@ export const DashboardProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const [error, setError] = useState<string | null>(null)
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
   const [selectedMonth, setSelectedMonth] = useState<string>('')
-  const [selectedVideoType, setSelectedVideoType] = useState<string>('')
+  const [selectedVideoType, setSelectedVideoType] = useState<string>('all')
 
   const fetchData = useCallback(async () => {
     setLoading(true)
@@ -144,7 +144,7 @@ export const DashboardProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     if (selectedMonth) {
       result = result.filter((d) => d.mesFaturamento === selectedMonth)
     }
-    if (selectedVideoType) {
+    if (selectedVideoType && selectedVideoType !== 'all') {
       result = result.filter((d) => d.tipoDeVideo === selectedVideoType)
     }
     return result
