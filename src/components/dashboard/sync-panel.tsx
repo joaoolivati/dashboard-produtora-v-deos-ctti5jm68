@@ -80,8 +80,14 @@ export function SyncPanel() {
               {syncing ? 'Sincronizando...' : 'Sincronizar Planilha'}
             </Button>
             <p className="text-xs text-muted-foreground">
-              Importa os dados da planilha do Google Sheets
+              Importa os dados da planilha do Google Sheets. Para grandes volumes, pode levar alguns
+              minutos.
             </p>
+            {syncing && (
+              <p className="animate-fade-in text-xs text-primary/80">
+                Processando dados... A sincronização pode levar alguns minutos para grandes volumes.
+              </p>
+            )}
           </div>
 
           <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:gap-4">

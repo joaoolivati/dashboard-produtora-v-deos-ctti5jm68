@@ -4,7 +4,11 @@ export function parseCSV(csvString: string): Record<string, string>[] {
   let currentVal = ''
   let inQuotes = false
 
-  const str = csvString.replace(/\r\n/g, '\n').replace(/\r/g, '\n')
+  // Strip UTF-8 BOM (causes first header mismatch) and normalize line endings
+  const str = csvString
+    .replace(/^\uFEFF/, '')
+    .replace(/\r\n/g, '\n')
+    .replace(/\r/g, '\n')
 
   for (let i = 0; i < str.length; i++) {
     const char = str[i]

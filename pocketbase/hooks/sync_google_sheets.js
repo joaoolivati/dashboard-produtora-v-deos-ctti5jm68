@@ -52,11 +52,16 @@ cronAdd('sync_google_sheets', '0 * * * *', () => {
     logSync('error', 0, 0, 'Empty response body from Google Sheets')
     return
   }
+  // Process body directly as string — TextDecoder is unavailable in the JSVM
   if (typeof res.body === 'string') {
     csvText = res.body
+  } else if (res.body && typeof res.body.toString === 'function') {
+    csvText = res.body.toString()
   } else {
     csvText = String(res.body)
   }
+  // Strip UTF-8 BOM (causes first header name mismatch) and null bytes
+  csvText = csvText.replace(/^\uFEFF/, '').replace(/\u0000/g, '')
 
   $app.logger().info('sync_google_sheets: received CSV payload', 'csvTextLength', csvText.length)
 
@@ -110,12 +115,30 @@ cronAdd('sync_google_sheets', '0 * * * *', () => {
   $app.logger().info('sync_google_sheets: parsed CSV rows', 'totalLines', rows.length)
 
   if (rows.length < 2) {
-    $app.logger().warn('sync_google_sheets: CSV has no data rows')
-    logSync('error', 0, 0, 'No data rows found in CSV')
+    $app
+      .logger()
+      .warn(
+        'sync_google_sheets: CSV has no data rows',
+        'rawLength',
+        csvText.length,
+        'parsedRows',
+        rows.length,
+      )
+    logSync(
+      'error',
+      0,
+      0,
+      'No data rows found in CSV (parsed ' +
+        rows.length +
+        ' rows from ' +
+        csvText.length +
+        ' chars)',
+    )
     return
   }
 
   const headers = rows[0].map((h) => h.toLowerCase().trim().replace(/\s+/g, '_'))
+  $app.logger().info('sync_google_sheets: CSV headers detected', 'headers', headers.join(', '))
   const dataRows = rows.slice(1).map((r) => {
     const obj = {}
     headers.forEach((h, i) => {
