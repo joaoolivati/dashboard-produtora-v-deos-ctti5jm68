@@ -124,12 +124,11 @@ routerAdd(
 
     $app.logger().info('sync_pull_sheets: parsed CSV rows', 'totalLines', rows.length)
 
-    const DATA_START_ROW = 3 // Line 1 = headers, Lines 2-3 = skipped, Line 4+ = data
-    if (rows.length <= DATA_START_ROW) {
+    if (rows.length < 2) {
       $app
         .logger()
         .warn(
-          'sync_pull_sheets: CSV has no data rows (need at least 4 rows: header + 2 skip + data)',
+          'sync_pull_sheets: CSV has no data rows (need at least 2 rows: header + data)',
           'rawLength',
           csvText.length,
           'parsedRows',
@@ -139,14 +138,14 @@ routerAdd(
         'error',
         0,
         0,
-        'No data rows found in CSV — need at least 4 rows (parsed ' +
+        'No data rows found in CSV — need at least 2 rows (parsed ' +
           rows.length +
           ' rows from ' +
           csvText.length +
           ' chars)',
       )
       return e.json(200, {
-        message: 'No data rows found in CSV — need at least 4 rows',
+        message: 'No data rows found in CSV — need at least 2 rows',
         rowsRead: 0,
         rowsSaved: 0,
         status: 'success',
@@ -155,7 +154,7 @@ routerAdd(
 
     const headers = rows[0].map((h) => h.toLowerCase().trim().replace(/\s+/g, '_'))
     $app.logger().info('sync_pull_sheets: CSV headers detected', 'headers', headers.join(', '))
-    const dataRows = rows.slice(DATA_START_ROW).map((r) => {
+    const dataRows = rows.slice(1).map((r) => {
       const obj = {}
       headers.forEach((h, i) => {
         obj[h] = r[i] || ''
