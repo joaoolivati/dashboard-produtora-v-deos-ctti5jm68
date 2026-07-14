@@ -49,7 +49,9 @@ export function SyncPanel() {
     setSyncing(true)
     try {
       const result = await triggerManualSync()
-      if (result.rowsRead === 0) {
+      if (result.status === 'error') {
+        toast.error(result.error || result.message || 'Erro na sincronização.')
+      } else if (result.rowsRead === 0) {
         toast.error(
           'Nenhum dado encontrado na planilha. Verifique se a aba BASE_GERAL contém dados.',
         )
@@ -61,16 +63,16 @@ export function SyncPanel() {
       loadHistory()
     } catch (err: any) {
       const message =
-        err?.response?.error ||
-        err?.message ||
-        (err instanceof Error ? err.message : null) ||
-        'Erro ao sincronizar com a planilha. Tente novamente.'
+        err instanceof Error
+          ? err.message
+          : err?.response?.error ||
+            err?.message ||
+            'Erro ao sincronizar com a planilha. Tente novamente.'
       toast.error(message)
     } finally {
       setSyncing(false)
     }
   }
-
   const lastSync = history.find((h) => h.status === 'success')
   const lastSyncDate = lastSync
     ? format(new Date(lastSync.execution_date || lastSync.created), "dd/MM/yyyy 'às' HH:mm")
