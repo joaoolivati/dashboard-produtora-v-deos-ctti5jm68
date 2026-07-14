@@ -4,26 +4,38 @@ import { Toaster as Sonner } from '@/components/ui/sonner'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import Index from './pages/Index'
 import NotFound from './pages/NotFound'
+import Login from './pages/Login'
 import Layout from './components/Layout'
+import { ProtectedRoute } from './components/ProtectedRoute'
 import { ThemeProvider } from './components/theme-provider'
 import { DashboardProvider } from './contexts/dashboard-context'
+import { AuthProvider } from '@/hooks/use-auth'
 
 const App = () => (
   <ThemeProvider defaultTheme="system" storageKey="dashboard-theme">
-    <DashboardProvider>
+    <AuthProvider>
       <BrowserRouter>
         <TooltipProvider>
           <Toaster />
           <Sonner />
           <Routes>
-            <Route element={<Layout />}>
-              <Route path="/" element={<Index />} />
+            <Route path="/login" element={<Login />} />
+            <Route element={<ProtectedRoute />}>
+              <Route
+                element={
+                  <DashboardProvider>
+                    <Layout />
+                  </DashboardProvider>
+                }
+              >
+                <Route path="/" element={<Index />} />
+              </Route>
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>
         </TooltipProvider>
       </BrowserRouter>
-    </DashboardProvider>
+    </AuthProvider>
   </ThemeProvider>
 )
 

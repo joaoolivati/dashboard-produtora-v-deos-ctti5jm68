@@ -16,8 +16,8 @@ import { generatePrediction } from '@/lib/prediction'
 import { formatCurrency } from '@/lib/utils'
 
 const chartConfig = {
-  actual: { label: 'Realizado', color: 'hsl(var(--chart-2))' },
-  projected: { label: 'Projeção', color: 'hsl(var(--chart-5))' },
+  actual: { label: 'Realizado', color: 'hsl(var(--chart-4))' },
+  projected: { label: 'Projeção', color: 'hsl(var(--muted-foreground))' },
 }
 
 export function RevenueChart() {
@@ -93,21 +93,28 @@ export function RevenueChart() {
                   content={
                     <ChartTooltipContent
                       indicator="dot"
-                      labelFormatter={(_, payload) => `Dia ${payload?.[0]?.payload?.label ?? ''}`}
-                      formatter={(value: number, name: string, item: any) => (
-                        <div key={name} className="flex w-full items-center gap-2 text-sm">
-                          <span
-                            className="h-2 w-2 rounded-full"
-                            style={{ backgroundColor: item.color }}
-                          />
-                          <span className="text-muted-foreground">
-                            {name === 'actual' ? 'Realizado' : 'Projeção'}
-                          </span>
-                          <span className="ml-auto font-mono font-semibold">
-                            {formatCurrency(Number(value) || 0)}
-                          </span>
-                        </div>
-                      )}
+                      labelFormatter={(_, payload) => {
+                        const label = payload?.[0]?.payload?.label ?? ''
+                        return `Dia ${label}`
+                      }}
+                      formatter={(value: number, name: string, item: any) => {
+                        const numValue = Number(value) || 0
+                        if (numValue === 0) return null
+                        return (
+                          <div key={name} className="flex w-full items-center gap-2 text-sm py-0.5">
+                            <span
+                              className="h-2 w-2 rounded-full shrink-0"
+                              style={{ backgroundColor: item.color }}
+                            />
+                            <span className="text-muted-foreground">
+                              {name === 'actual' ? 'Realizado' : 'Projeção'}
+                            </span>
+                            <span className="ml-auto font-mono font-semibold">
+                              {formatCurrency(numValue)}
+                            </span>
+                          </div>
+                        )
+                      }}
                     />
                   }
                 />

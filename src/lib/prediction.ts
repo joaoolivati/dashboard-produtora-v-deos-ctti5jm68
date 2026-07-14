@@ -7,6 +7,14 @@ export interface PredictionPoint {
   projected: number | null
 }
 
+export interface PredictionResult {
+  points: PredictionPoint[]
+  projectedTotal: number
+  currentTotal: number
+  dailyAvg: number
+  daysElapsed: number
+}
+
 const MONTH_MAP: Record<string, number> = {
   JANEIRO: 1,
   FEVEREIRO: 2,
@@ -47,13 +55,25 @@ export function generatePrediction(
   allData: VideoRecord[],
   selectedMonth: string,
 ): PredictionPoint[] {
-  if (!currentData.length) return []
+  return computePrediction(currentData, allData, selectedMonth).points
+}
+
+export function computePrediction(
+  currentData: VideoRecord[],
+  allData: VideoRecord[],
+  selectedMonth: string,
+): PredictionResult {
+  if (!currentData.length) {
+    return { points: [], projectedTotal: 0, currentTotal: 0, dailyAvg: 0, daysElapsed: 0 }
+  }
 
   const currentByDay = aggregateByDay(currentData)
   const sortedDays = Object.keys(currentByDay)
     .map(Number)
     .sort((a, b) => a - b)
-  if (!sortedDays.length) return []
+  if (!sortedDays.length) {
+    return { points: [], projectedTotal: 0, currentTotal: 0, dailyAvg: 0, daysElapsed: 0 }
+  }
 
   let cumulative = 0
   const actualCumul = new Map<number, number>()
@@ -140,5 +160,8 @@ export function generatePrediction(
     points.push({ day: d, label: `${d}`, actual: null, projected: projectedTotal * getPct(d) })
   }
 
-  return points
+  const daysElapsed = sortedDays.length
+  const dailyAvg = daysElapsed > 0 ? currentTotal / daysElapsed : 0
+
+  return { points, projectedTotal, currentTotal, dailyAvg, daysElapsed }
 }

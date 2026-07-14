@@ -4,22 +4,22 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Separator } from '@/components/ui/separator'
 import { TrendingUp } from 'lucide-react'
 import { useDashboardContext } from '@/contexts/dashboard-context'
+import { computePrediction } from '@/lib/prediction'
 import { formatCurrency } from '@/lib/utils'
 
 export function ProjectionCard() {
-  const { filteredData, loading } = useDashboardContext()
+  const { filteredData, data, loading, selectedMonth } = useDashboardContext()
 
   const projection = useMemo(() => {
     if (!filteredData.length) return { total: 0, dailyAvg: 0, projected: 0, daysElapsed: 0 }
-
-    const total = filteredData.reduce((sum, item) => sum + item.valor, 0)
-    const uniqueDays = new Set(filteredData.map((d) => d.dataDoServico))
-    const daysElapsed = uniqueDays.size || 1
-    const dailyAvg = total / daysElapsed
-    const projected = dailyAvg * 30
-
-    return { total, dailyAvg, projected, daysElapsed }
-  }, [filteredData])
+    const result = computePrediction(filteredData, data, selectedMonth)
+    return {
+      total: result.currentTotal,
+      dailyAvg: result.dailyAvg,
+      projected: result.projectedTotal,
+      daysElapsed: result.daysElapsed,
+    }
+  }, [filteredData, data, selectedMonth])
 
   if (loading && filteredData.length === 0) {
     return (
@@ -47,7 +47,7 @@ export function ProjectionCard() {
         <div className="text-3xl font-bold font-mono tracking-tight text-foreground">
           {formatCurrency(projection.projected)}
         </div>
-        <p className="text-xs text-muted-foreground mt-1">Estimativa para o mês (30 dias)</p>
+        <p className="text-xs text-muted-foreground mt-1">Estimativa comportamental para o mês</p>
         <Separator className="my-4" />
         <div className="flex items-center gap-6">
           <div>

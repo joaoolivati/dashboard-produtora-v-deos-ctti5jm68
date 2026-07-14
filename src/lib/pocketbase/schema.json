@@ -1,0 +1,140 @@
+{
+  "generatedAt": "2026-07-14T02:02:03.857Z",
+  "collections": [
+    {
+      "name": "users",
+      "type": "auth",
+      "apiRules": {
+        "list": "id = @request.auth.id",
+        "view": "id = @request.auth.id",
+        "create": "",
+        "update": "id = @request.auth.id",
+        "delete": "id = @request.auth.id"
+      },
+      "fields": [
+        {
+          "name": "name",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "avatar",
+          "type": "file",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE UNIQUE INDEX `idx_tokenKey__pb_users_auth_` ON `users` (`tokenKey`)",
+        "CREATE UNIQUE INDEX `idx_email__pb_users_auth_` ON `users` (`email`) WHERE `email` != ''"
+      ]
+    },
+    {
+      "name": "servicos",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != ''",
+        "view": "@request.auth.id != ''",
+        "create": "@request.auth.id != ''",
+        "update": "@request.auth.id != ''",
+        "delete": "@request.auth.id != ''"
+      },
+      "fields": [
+        {
+          "name": "data_servico",
+          "type": "date",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "especialista",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "tipo_video",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "identificacao",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "video_bruto",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "video_editado",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "valores",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "observacoes",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "editor",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "mes_faturamento",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE INDEX idx_servicos_data ON servicos (data_servico)",
+        "CREATE INDEX idx_servicos_especialista ON servicos (especialista)",
+        "CREATE INDEX idx_servicos_mes ON servicos (mes_faturamento)"
+      ]
+    }
+  ]
+}

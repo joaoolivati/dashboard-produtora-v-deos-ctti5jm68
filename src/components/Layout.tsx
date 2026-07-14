@@ -1,6 +1,7 @@
 import { Outlet } from 'react-router-dom'
 import { ThemeToggle } from './ThemeToggle'
 import { useDashboardContext } from '@/contexts/dashboard-context'
+import { useAuth } from '@/hooks/use-auth'
 import {
   Select,
   SelectContent,
@@ -8,7 +9,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { RefreshCcw, Clapperboard, Video } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { RefreshCcw, Clapperboard, Video, LogOut } from 'lucide-react'
 import { format, isToday } from 'date-fns'
 
 export default function Layout() {
@@ -23,6 +25,7 @@ export default function Layout() {
     loading,
     refetch,
   } = useDashboardContext()
+  const { signOut, user } = useAuth()
 
   return (
     <div className="min-h-screen bg-background flex flex-col font-sans">
@@ -83,6 +86,16 @@ export default function Layout() {
                 ))}
               </SelectContent>
             </Select>
+
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={signOut}
+              className="rounded-full"
+              title="Sair"
+            >
+              <LogOut className="h-4 w-4" strokeWidth={1.5} />
+            </Button>
 
             <ThemeToggle />
           </div>

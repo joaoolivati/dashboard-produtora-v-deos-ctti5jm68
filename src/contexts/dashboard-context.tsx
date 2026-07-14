@@ -1,10 +1,9 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
-import { parseCSV } from '@/lib/csv-parser'
-
-const CSV_URL =
-  'https://docs.google.com/spreadsheets/d/e/2PACX-1vT6HCgMyyA0Lfys-G-Y19h7oDxYoUTSwHEJqP6A4DBheOMTH385oygrMzxffJOXlyZlTVTjlvgMGR71/pub?gid=2076247605&single=true&output=csv'
+import { getServicos, type ServicoRecord } from '@/services/servicos'
+import { useRealtime } from '@/hooks/use-realtime'
 
 export interface VideoRecord {
+  id: string
   dataDoServico: string
   mesFaturamento: string
   valor: number
@@ -32,18 +31,20 @@ interface DashboardContextState {
 
 const DashboardContext = createContext<DashboardContextState | undefined>(undefined)
 
-const cleanCurrency = (val: string) => {
-  if (!val) return 0
-  const cleaned = val.replace(/\./g, '').replace('R$', '').replace(',', '.').trim()
-  const num = parseFloat(cleaned)
-  return isNaN(num) ? 0 : num
+const formatDate = (isoDate: string): string => {
+  if (!isoDate) return ''
+  const d = new Date(isoDate)
+  const day = String(d.getDate()).padStart(2, '0')
+  const month = String(d.getMonth() + 1).padStart(2, '0')
+  return `${day}/${month}`
 }
 
-const getFlexKey = (obj: Record<string, string>, possibleKeys: string[]) => {
-  const key = Object.keys(obj).find((k) =>
-    possibleKeys.some((pk) => k.toUpperCase().includes(pk.toUpperCase())),
-  )
-  return key ? obj[key] : ''
+const parseDurationToHours = (duration: string): number => {
+  if (!duration) return 0
+  const parts = duration.split(':').map(Number)
+  if (parts.length === 2) return parts[0] + parts[1] / 60
+  if (parts.length === 3) return parts[0] + parts[1] / 60 + parts[2] / 3600
+  return 0
 }
 
 const MONTH_MAP: Record<string, number> = {
@@ -73,6 +74,18 @@ const parseMonthYear = (str: string): number => {
   return fullYear * 100 + monthNum
 }
 
+const mapToVideoRecord = (s: ServicoRecord): VideoRecord => ({
+  id: s.id,
+  dataDoServico: formatDate(s.data_servico),
+  mesFaturamento: s.mes_faturamento || '',
+  valor: s.valores || 0,
+  identificacao: s.identificacao || '',
+  especialista: s.especialista || '',
+  editor: s.editor || '',
+  tipoDeVideo: s.tipo_video || '',
+  horasEditadas: parseDurationToHours(s.video_editado || s.video_bruto || ''),
+})
+
 export const DashboardProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [data, setData] = useState<VideoRecord[]>([])
   const [loading, setLoading] = useState(true)
@@ -85,25 +98,9 @@ export const DashboardProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch(CSV_URL)
-      if (!res.ok) throw new Error('Failed to fetch data')
-      const text = await res.text()
-      const parsed = parseCSV(text)
-
-      const records: VideoRecord[] = parsed
-        .map((row) => ({
-          dataDoServico: getFlexKey(row, ['DATA DO SERVIÇO', 'DATA']),
-          mesFaturamento: getFlexKey(row, ['MÊS DE FATURAMENTO', 'MÊS', 'MES']),
-          valor: cleanCurrency(getFlexKey(row, ['VALORES', 'VALOR', 'PREÇO'])),
-          identificacao: getFlexKey(row, ['IDENTIFICAÇÃO', 'CLIENTE', 'NOME']),
-          especialista: getFlexKey(row, ['ESPECIALISTA', 'CLIENTE', 'NOME']),
-          editor: getFlexKey(row, ['EDITOR', 'RESPONSÁVEL']),
-          tipoDeVideo: getFlexKey(row, ['TIPO DE VÍDEO', 'TIPO', 'FORMATO']),
-          horasEditadas: Math.round(Math.random() * 3 + 2),
-        }))
-        .filter((r) => r.dataDoServico && r.mesFaturamento)
-
-      setData(records)
+      const records = await getServicos()
+      const mapped = records.map(mapToVideoRecord)
+      setData(mapped)
       setLastUpdated(new Date())
     } catch (err: any) {
       setError(err.message || 'Unknown error occurred')
@@ -114,14 +111,11 @@ export const DashboardProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   useEffect(() => {
     fetchData()
-    const interval = setInterval(fetchData, 60 * 60 * 1000)
-    const handleFocus = () => fetchData()
-    window.addEventListener('focus', handleFocus)
-    return () => {
-      clearInterval(interval)
-      window.removeEventListener('focus', handleFocus)
-    }
   }, [fetchData])
+
+  useRealtime('servicos', () => {
+    fetchData()
+  })
 
   const months = useMemo(() => {
     const m = Array.from(new Set(data.map((d) => d.mesFaturamento))).filter(Boolean)
