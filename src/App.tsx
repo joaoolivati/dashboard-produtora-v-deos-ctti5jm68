@@ -10,6 +10,9 @@ import { ProtectedRoute } from './components/ProtectedRoute'
 import { ThemeProvider } from './components/theme-provider'
 import { DashboardProvider } from './contexts/dashboard-context'
 import { AuthProvider } from '@/hooks/use-auth'
+import { applyCssRulesSecurityPatch } from '@/lib/css-rules-patch'
+
+applyCssRulesSecurityPatch()
 
 const App = () => (
   <ThemeProvider defaultTheme="system" storageKey="dashboard-theme">
