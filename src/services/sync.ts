@@ -2,8 +2,9 @@ import pb from '@/lib/pocketbase/client'
 
 export interface SyncResult {
   message: string
-  inserted: number
-  totalParsed: number
+  rowsRead: number
+  rowsSaved: number
+  status: string
 }
 
 export const triggerManualSync = async (): Promise<SyncResult> => {
