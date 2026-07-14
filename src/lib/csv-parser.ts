@@ -12,8 +12,8 @@ export function parseCSV(csvString: string): Record<string, string>[] {
     .replace(/\u2028/g, '\n')
     .replace(/\u2029/g, '\n')
     .replace(/\u0085/g, '\n')
-    .replace(/\u000B/g, '\n')
-    .replace(/\u000C/g, '\n')
+    .replace(/[\u000B]/g, '\n')
+    .replace(/[\u000C]/g, '\n')
 
   for (let i = 0; i < str.length; i++) {
     const char = str[i]
