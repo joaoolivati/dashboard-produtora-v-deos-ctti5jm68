@@ -251,16 +251,13 @@ cronAdd('sync_google_sheets', '0 * * * *', () => {
         let valores = parseFloat(rawVal)
         if (isNaN(valores)) valores = 0
 
-        record.set('data_servico', dataServico)
-        record.set('especialista', d['especialista'] || '')
-        record.set('tipo_video', d['tipo_video'] || '')
         record.set('identificacao', ident)
-        record.set('video_bruto', d['video_bruto'] || '')
-        record.set('video_editado', d['video_editado'] || '')
-        record.set('valores', valores)
-        record.set('observacoes', d['observacoes'] || '')
-        record.set('editor', d['editor'] || '')
-        record.set('mes_faturamento', d['mes_faturamento'] || '')
+        record.set('data_entrega', dataServico)
+        record.set('valor', valores)
+        record.set('categoria', d['tipo_video'] || '')
+        record.set('cliente', d['especialista'] || '')
+        record.set('descricao', d['observacoes'] || '')
+        record.set('status', d['mes_faturamento'] || '')
 
         $app.saveNoValidate(record)
 

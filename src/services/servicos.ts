@@ -2,23 +2,20 @@ import pb from '@/lib/pocketbase/client'
 
 export interface ServicoRecord {
   id: string
-  data_servico: string
-  especialista: string
-  tipo_video: string
   identificacao: string
-  video_bruto: string
-  video_editado: string
-  valores: number
-  observacoes: string
-  editor: string
-  mes_faturamento: string
+  descricao: string
+  categoria: string
+  status: string
+  cliente: string
+  data_entrega: string
+  valor: number
   created: string
   updated: string
 }
 
 export const getServicos = async (): Promise<ServicoRecord[]> => {
   return await pb.collection('servicos').getFullList<ServicoRecord>({
-    sort: '-data_servico',
+    sort: '-data_entrega',
   })
 }
 

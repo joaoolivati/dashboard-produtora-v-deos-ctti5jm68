@@ -49,9 +49,15 @@ export function SyncPanel() {
     setSyncing(true)
     try {
       const result = await triggerManualSync()
-      toast.success(
-        `Sincronização concluída: ${result.rowsRead} linhas lidas, ${result.rowsSaved} registros gravados.`,
-      )
+      if (result.rowsRead === 0) {
+        toast.error(
+          'Nenhum dado encontrado na planilha. Verifique se a aba BASE_GERAL contém dados.',
+        )
+      } else {
+        toast.success(
+          `Sincronização concluída: ${result.rowsRead} linhas lidas, ${result.rowsSaved} registros gravados.`,
+        )
+      }
       loadHistory()
     } catch (err: any) {
       const message =
