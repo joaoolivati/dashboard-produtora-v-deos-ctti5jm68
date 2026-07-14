@@ -10,6 +10,7 @@ import { ProtectedRoute } from './components/ProtectedRoute'
 import { ThemeProvider } from './components/theme-provider'
 import { DashboardProvider } from './contexts/dashboard-context'
 import { AuthProvider } from '@/hooks/use-auth'
+import { PrivacyProvider } from '@/contexts/privacy-context'
 import { applyCssRulesSecurityPatch } from '@/lib/css-rules-patch'
 
 applyCssRulesSecurityPatch()
