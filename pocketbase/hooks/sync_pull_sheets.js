@@ -99,17 +99,89 @@ routerAdd(
       })
     }
 
-    const headers = values[0].map((h) => {
-      return String(h || '')
-        .toLowerCase()
-        .trim()
-        .replace(/\s+/g, '_')
+    var stripAccents = (str) => {
+      return str
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/ñ/g, 'n')
+    }
+
+    var FIELD_ALIASES = {
+      data_servico: ['data_servico', 'data_do_servico', 'data', 'data_servico'],
+      especialista: ['especialista', 'especialista_responsavel', 'responsavel'],
+      tipo_video: [
+        'tipo_video',
+        'tipo_de_video',
+        'tipo_de_servico',
+        'tipo_servico',
+        'tipo',
+        'servico',
+      ],
+      identificacao: ['identificacao', 'identificacao_do_video', 'id_video', 'codigo'],
+      video_bruto: ['video_bruto', 'tempo_bruto', 'duracao_bruta', 'bruto'],
+      video_editado: ['video_editado', 'tempo_editado', 'duracao_editada', 'editado'],
+      valores: ['valores', 'valor', 'preco', 'custo', 'valor_servico'],
+      observacoes: ['observacoes', 'observacao', 'obs', 'notas', 'nota'],
+      editor: ['editor', 'editor_responsavel', 'responsavel_edicao'],
+      mes_faturamento: ['mes_faturamento', 'mes_de_faturamento', 'faturamento', 'mes'],
+    }
+
+    var aliasToField = {}
+    Object.keys(FIELD_ALIASES).forEach(function (field) {
+      aliasToField[field] = field
+      FIELD_ALIASES[field].forEach(function (alias) {
+        aliasToField[alias] = field
+      })
     })
 
-    const dataRows = values.slice(1).map((row) => {
-      const obj = {}
+    var normalizeHeader = (rawHeader) => {
+      var normalized = stripAccents(String(rawHeader || ''))
+        .toLowerCase()
+        .trim()
+        .replace(/[^a-z0-9\s]/g, '')
+        .replace(/\s+/g, '_')
+      return aliasToField[normalized] || normalized
+    }
+
+    var headers = values[0].map(normalizeHeader)
+
+    $app.logger().info('sync_pull_sheets: normalized headers', 'headers', JSON.stringify(headers))
+
+    var REQUIRED_FIELDS = [
+      'data_servico',
+      'especialista',
+      'tipo_video',
+      'identificacao',
+      'video_bruto',
+      'video_editado',
+      'valores',
+      'observacoes',
+      'editor',
+      'mes_faturamento',
+    ]
+
+    var missingFields = REQUIRED_FIELDS.filter(function (f) {
+      return headers.indexOf(f) === -1
+    })
+    if (missingFields.length > 0) {
+      $app
+        .logger()
+        .warn(
+          'sync_pull_sheets: some fields not found in spreadsheet headers',
+          'missingFields',
+          JSON.stringify(missingFields),
+          'headersFound',
+          JSON.stringify(headers),
+        )
+    }
+
+    var dataRows = values.slice(1).map((row) => {
+      var obj = {}
       headers.forEach((h, i) => {
         obj[h] = row[i] !== undefined ? String(row[i]) : ''
+      })
+      REQUIRED_FIELDS.forEach(function (f) {
+        if (!(f in obj)) obj[f] = ''
       })
       return obj
     })
@@ -174,30 +246,37 @@ routerAdd(
     let errorCount = 0
 
     const parseDate = (raw) => {
-      let d = raw || ''
-      if (d) {
-        const parts = d.split('/')
-        if (parts.length === 3) {
-          let day = parts[0]
-          let month = parts[1]
-          const year = parts[2]
-          if (day.length < 2) day = '0' + day
-          if (month.length < 2) month = '0' + month
-          d = year + '-' + month + '-' + day
-        }
+      var d = (raw || '').toString().trim()
+      if (!d) return new Date().toISOString().slice(0, 10)
+
+      var parts = d.split(/[\/\-]/)
+      if (parts.length === 3) {
+        var day = parts[0].padStart(2, '0')
+        var month = parts[1].padStart(2, '0')
+        var year = parts[2]
+        if (year.length === 2) year = '20' + year
+        return year + '-' + month + '-' + day
       }
-      if (!d) d = new Date().toISOString().slice(0, 10)
-      return d
+
+      var parsed = new Date(d)
+      if (!isNaN(parsed.getTime())) {
+        return parsed.toISOString().slice(0, 10)
+      }
+
+      return new Date().toISOString().slice(0, 10)
     }
 
     const parseValores = (raw) => {
-      let v = (raw || '0').toString().replace(/[^0-9.,-]/g, '')
+      if (typeof raw === 'number') return raw
+      var v = (raw || '0').toString().trim()
+      v = v.replace(/R\$/gi, '').replace(/[^\d.,-]/g, '')
+      if (!v) return 0
       if (v.indexOf(',') > -1 && v.indexOf('.') > -1) {
         v = v.replace(/\./g, '').replace(',', '.')
       } else if (v.indexOf(',') > -1) {
         v = v.replace(',', '.')
       }
-      const n = parseFloat(v)
+      var n = parseFloat(v)
       return isNaN(n) ? 0 : n
     }
 
