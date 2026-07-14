@@ -114,7 +114,8 @@ cronAdd('sync_google_sheets', '0 6 * * *', () => {
 
   $app.logger().info('sync_google_sheets: parsed CSV rows', 'totalLines', rows.length)
 
-  if (rows.length < 4) {
+  const DATA_START_ROW = 3 // Line 1 = headers, Lines 2-3 = skipped, Line 4+ = data
+  if (rows.length <= DATA_START_ROW) {
     $app
       .logger()
       .warn(
@@ -139,7 +140,7 @@ cronAdd('sync_google_sheets', '0 6 * * *', () => {
 
   const headers = rows[0].map((h) => h.toLowerCase().trim().replace(/\s+/g, '_'))
   $app.logger().info('sync_google_sheets: CSV headers detected', 'headers', headers.join(', '))
-  const dataRows = rows.slice(3).map((r) => {
+  const dataRows = rows.slice(DATA_START_ROW).map((r) => {
     const obj = {}
     headers.forEach((h, i) => {
       obj[h] = r[i] || ''

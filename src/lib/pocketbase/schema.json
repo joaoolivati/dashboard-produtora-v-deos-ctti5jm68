@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-07-14T16:45:00.895Z",
+  "generatedAt": "2026-07-14T17:00:02.344Z",
   "collections": [
     {
       "name": "users",
@@ -109,21 +109,15 @@
       "apiRules": {
         "list": "@request.auth.id != ''",
         "view": "@request.auth.id != ''",
-        "create": "",
-        "update": "",
-        "delete": ""
+        "create": "@request.auth.id != ''",
+        "update": "@request.auth.id != ''",
+        "delete": "@request.auth.id != ''"
       },
       "fields": [
         {
-          "name": "identificacao",
-          "type": "text",
-          "required": false,
-          "system": false
-        },
-        {
           "name": "data_servico",
-          "type": "text",
-          "required": false,
+          "type": "date",
+          "required": true,
           "system": false
         },
         {
@@ -134,6 +128,12 @@
         },
         {
           "name": "tipo_video",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "identificacao",
           "type": "text",
           "required": false,
           "system": false
@@ -191,10 +191,9 @@
       ],
       "indexes": [
         "CREATE UNIQUE INDEX idx_servicos_identificacao_unique ON servicos (identificacao) WHERE identificacao != ''",
-        "CREATE INDEX idx_servicos_data_servico ON servicos (data_servico)",
-        "CREATE INDEX idx_servicos_mes_faturamento ON servicos (mes_faturamento)",
-        "CREATE INDEX idx_servicos_especialista ON servicos (especialista)",
-        "CREATE INDEX idx_servicos_tipo_video ON servicos (tipo_video)"
+        "CREATE INDEX idx_servicos_created ON servicos (created)",
+        "CREATE INDEX idx_servicos_updated ON servicos (updated)",
+        "CREATE INDEX idx_servicos_mes_faturamento ON servicos (mes_faturamento)"
       ]
     }
   ]
