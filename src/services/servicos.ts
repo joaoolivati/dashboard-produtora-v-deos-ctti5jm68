@@ -18,7 +18,7 @@ export interface ServicoRecord {
 
 export const getServicos = async (): Promise<ServicoRecord[]> => {
   return await pb.collection('servicos').getFullList<ServicoRecord>({
-    sort: '-created',
+    sort: '-data_servico',
   })
 }
 

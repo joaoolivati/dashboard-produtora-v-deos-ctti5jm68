@@ -1,6 +1,6 @@
 cronAdd('sync_google_sheets', '0 * * * *', () => {
   const CSV_URL =
-    'https://docs.google.com/spreadsheets/d/1buDNmxDKscXwe7iGNSwYEAVcm7646dsPpMHTSPyYg-I/export?format=csv&gid=0'
+    'https://docs.google.com/spreadsheets/d/1buDNmxDKscXwe7iGNSwYEAVcm7646dsPpMHTSPyYg-I/gviz/tq?tqx=out:csv&sheet=BASE_GERAL'
 
   $app.logger().info('sync_google_sheets: starting hourly sync')
 
