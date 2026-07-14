@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-07-14T16:37:56.468Z",
+  "generatedAt": "2026-07-14T16:45:00.895Z",
   "collections": [
     {
       "name": "users",
@@ -121,38 +121,56 @@
           "system": false
         },
         {
-          "name": "descricao",
+          "name": "data_servico",
           "type": "text",
           "required": false,
           "system": false
         },
         {
-          "name": "categoria",
+          "name": "especialista",
           "type": "text",
           "required": false,
           "system": false
         },
         {
-          "name": "status",
+          "name": "tipo_video",
           "type": "text",
           "required": false,
           "system": false
         },
         {
-          "name": "cliente",
+          "name": "video_bruto",
           "type": "text",
           "required": false,
           "system": false
         },
         {
-          "name": "data_entrega",
+          "name": "video_editado",
           "type": "text",
           "required": false,
           "system": false
         },
         {
-          "name": "valor",
+          "name": "valores",
           "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "observacoes",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "editor",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "mes_faturamento",
+          "type": "text",
           "required": false,
           "system": false
         },
@@ -173,8 +191,10 @@
       ],
       "indexes": [
         "CREATE UNIQUE INDEX idx_servicos_identificacao_unique ON servicos (identificacao) WHERE identificacao != ''",
-        "CREATE INDEX idx_servicos_categoria ON servicos (categoria)",
-        "CREATE INDEX idx_servicos_data_entrega ON servicos (data_entrega)"
+        "CREATE INDEX idx_servicos_data_servico ON servicos (data_servico)",
+        "CREATE INDEX idx_servicos_mes_faturamento ON servicos (mes_faturamento)",
+        "CREATE INDEX idx_servicos_especialista ON servicos (especialista)",
+        "CREATE INDEX idx_servicos_tipo_video ON servicos (tipo_video)"
       ]
     }
   ]

@@ -1,4 +1,4 @@
-cronAdd('sync_google_sheets', '0 * * * *', () => {
+cronAdd('sync_google_sheets', '0 6 * * *', () => {
   const CSV_URL =
     'https://docs.google.com/spreadsheets/d/1buDNmxDKscXwe7iGNSwYEAVcm7646dsPpMHTSPyYg-I/gviz/tq?tqx=out:csv&sheet=BASE_GERAL'
   const HTTP_TIMEOUT = 300
@@ -114,11 +114,11 @@ cronAdd('sync_google_sheets', '0 * * * *', () => {
 
   $app.logger().info('sync_google_sheets: parsed CSV rows', 'totalLines', rows.length)
 
-  if (rows.length < 2) {
+  if (rows.length < 4) {
     $app
       .logger()
       .warn(
-        'sync_google_sheets: CSV has no data rows',
+        'sync_google_sheets: CSV has no data rows (need at least 4 rows: header + 2 skip + data)',
         'rawLength',
         csvText.length,
         'parsedRows',
@@ -128,7 +128,7 @@ cronAdd('sync_google_sheets', '0 * * * *', () => {
       'error',
       0,
       0,
-      'No data rows found in CSV (parsed ' +
+      'No data rows found in CSV — need at least 4 rows (parsed ' +
         rows.length +
         ' rows from ' +
         csvText.length +
@@ -139,7 +139,7 @@ cronAdd('sync_google_sheets', '0 * * * *', () => {
 
   const headers = rows[0].map((h) => h.toLowerCase().trim().replace(/\s+/g, '_'))
   $app.logger().info('sync_google_sheets: CSV headers detected', 'headers', headers.join(', '))
-  const dataRows = rows.slice(1).map((r) => {
+  const dataRows = rows.slice(3).map((r) => {
     const obj = {}
     headers.forEach((h, i) => {
       obj[h] = r[i] || ''
@@ -252,12 +252,15 @@ cronAdd('sync_google_sheets', '0 * * * *', () => {
         if (isNaN(valores)) valores = 0
 
         record.set('identificacao', ident)
-        record.set('data_entrega', dataServico)
-        record.set('valor', valores)
-        record.set('categoria', d['tipo_video'] || '')
-        record.set('cliente', d['especialista'] || '')
-        record.set('descricao', d['observacoes'] || '')
-        record.set('status', d['mes_faturamento'] || '')
+        record.set('data_servico', dataServico)
+        record.set('valores', valores)
+        record.set('tipo_video', d['tipo_video'] || '')
+        record.set('especialista', d['especialista'] || '')
+        record.set('observacoes', d['observacoes'] || '')
+        record.set('mes_faturamento', d['mes_faturamento'] || '')
+        record.set('video_bruto', d['video_bruto'] || '')
+        record.set('video_editado', d['video_editado'] || '')
+        record.set('editor', d['editor'] || '')
 
         $app.saveNoValidate(record)
 

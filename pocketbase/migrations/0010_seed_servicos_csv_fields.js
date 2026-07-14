@@ -1,0 +1,144 @@
+migrate(
+  (app) => {
+    const col = app.findCollectionByNameOrId('servicos')
+
+    const seedData = [
+      {
+        data_servico: '2026-06-01',
+        especialista: 'João Silva',
+        tipo_video: 'Shorts',
+        identificacao: 'Cliente A - Video 1',
+        video_bruto: '02:30',
+        video_editado: '00:45',
+        valores: 350,
+        observacoes: '',
+        editor: 'Carlos',
+        mes_faturamento: 'JUNHO/26',
+      },
+      {
+        data_servico: '2026-06-03',
+        especialista: 'Maria Santos',
+        tipo_video: 'Reels',
+        identificacao: 'Cliente B - Video 1',
+        video_bruto: '03:15',
+        video_editado: '00:30',
+        valores: 280,
+        observacoes: '',
+        editor: 'Ana',
+        mes_faturamento: 'JUNHO/26',
+      },
+      {
+        data_servico: '2026-06-05',
+        especialista: 'João Silva',
+        tipo_video: 'YouTube',
+        identificacao: 'Cliente C - Video 1',
+        video_bruto: '45:00',
+        video_editado: '12:30',
+        valores: 1200,
+        observacoes: '',
+        editor: 'Carlos',
+        mes_faturamento: 'JUNHO/26',
+      },
+      {
+        data_servico: '2026-06-08',
+        especialista: 'Pedro Costa',
+        tipo_video: 'Shorts',
+        identificacao: 'Cliente D - Video 1',
+        video_bruto: '02:00',
+        video_editado: '00:40',
+        valores: 320,
+        observacoes: '',
+        editor: 'Bruno',
+        mes_faturamento: 'JUNHO/26',
+      },
+      {
+        data_servico: '2026-06-10',
+        especialista: 'Maria Santos',
+        tipo_video: 'YouTube',
+        identificacao: 'Cliente E - Video 1',
+        video_bruto: '60:00',
+        video_editado: '15:00',
+        valores: 1500,
+        observacoes: '',
+        editor: 'Ana',
+        mes_faturamento: 'JUNHO/26',
+      },
+      {
+        data_servico: '2026-07-01',
+        especialista: 'João Silva',
+        tipo_video: 'Shorts',
+        identificacao: 'Cliente A - Video 2',
+        video_bruto: '02:20',
+        video_editado: '00:42',
+        valores: 340,
+        observacoes: '',
+        editor: 'Carlos',
+        mes_faturamento: 'JULHO/26',
+      },
+      {
+        data_servico: '2026-07-03',
+        especialista: 'Maria Santos',
+        tipo_video: 'YouTube',
+        identificacao: 'Cliente B - Video 2',
+        video_bruto: '48:00',
+        video_editado: '11:00',
+        valores: 1100,
+        observacoes: '',
+        editor: 'Ana',
+        mes_faturamento: 'JULHO/26',
+      },
+      {
+        data_servico: '2026-07-05',
+        especialista: 'Pedro Costa',
+        tipo_video: 'Reels',
+        identificacao: 'Cliente C - Video 2',
+        video_bruto: '03:50',
+        video_editado: '00:33',
+        valores: 290,
+        observacoes: '',
+        editor: 'Bruno',
+        mes_faturamento: 'JULHO/26',
+      },
+      {
+        data_servico: '2026-07-08',
+        especialista: 'João Silva',
+        tipo_video: 'YouTube',
+        identificacao: 'Cliente D - Video 2',
+        video_bruto: '52:00',
+        video_editado: '13:20',
+        valores: 1350,
+        observacoes: '',
+        editor: 'Carlos',
+        mes_faturamento: 'JULHO/26',
+      },
+      {
+        data_servico: '2026-07-10',
+        especialista: 'Maria Santos',
+        tipo_video: 'Shorts',
+        identificacao: 'Cliente E - Video 2',
+        video_bruto: '02:35',
+        video_editado: '00:48',
+        valores: 360,
+        observacoes: '',
+        editor: 'Ana',
+        mes_faturamento: 'JULHO/26',
+      },
+    ]
+
+    seedData.forEach((d) => {
+      try {
+        app.findFirstRecordByData('servicos', 'identificacao', d.identificacao)
+      } catch (_) {
+        const record = new Record(col)
+        Object.keys(d).forEach((k) => record.set(k, d[k]))
+        app.save(record)
+      }
+    })
+  },
+  (app) => {
+    try {
+      const col = app.findCollectionByNameOrId('servicos')
+      app.truncateCollection(col)
+    } catch (_) {}
+  },
+)

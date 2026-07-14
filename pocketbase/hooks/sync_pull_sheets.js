@@ -124,11 +124,11 @@ routerAdd(
 
     $app.logger().info('sync_pull_sheets: parsed CSV rows', 'totalLines', rows.length)
 
-    if (rows.length < 2) {
+    if (rows.length < 4) {
       $app
         .logger()
         .warn(
-          'sync_pull_sheets: CSV has no data rows',
+          'sync_pull_sheets: CSV has no data rows (need at least 4 rows: header + 2 skip + data)',
           'rawLength',
           csvText.length,
           'parsedRows',
@@ -138,14 +138,14 @@ routerAdd(
         'error',
         0,
         0,
-        'No data rows found in CSV (parsed ' +
+        'No data rows found in CSV — need at least 4 rows (parsed ' +
           rows.length +
           ' rows from ' +
           csvText.length +
           ' chars)',
       )
       return e.json(200, {
-        message: 'No data rows found in CSV',
+        message: 'No data rows found in CSV — need at least 4 rows',
         rowsRead: 0,
         rowsSaved: 0,
         status: 'success',
@@ -154,7 +154,7 @@ routerAdd(
 
     const headers = rows[0].map((h) => h.toLowerCase().trim().replace(/\s+/g, '_'))
     $app.logger().info('sync_pull_sheets: CSV headers detected', 'headers', headers.join(', '))
-    const dataRows = rows.slice(1).map((r) => {
+    const dataRows = rows.slice(3).map((r) => {
       const obj = {}
       headers.forEach((h, i) => {
         obj[h] = r[i] || ''
@@ -267,12 +267,15 @@ routerAdd(
           if (isNaN(valores)) valores = 0
 
           record.set('identificacao', ident)
-          record.set('data_entrega', dataServico)
-          record.set('valor', valores)
-          record.set('categoria', d['tipo_video'] || '')
-          record.set('cliente', d['especialista'] || '')
-          record.set('descricao', d['observacoes'] || '')
-          record.set('status', d['mes_faturamento'] || '')
+          record.set('data_servico', dataServico)
+          record.set('valores', valores)
+          record.set('tipo_video', d['tipo_video'] || '')
+          record.set('especialista', d['especialista'] || '')
+          record.set('observacoes', d['observacoes'] || '')
+          record.set('mes_faturamento', d['mes_faturamento'] || '')
+          record.set('video_bruto', d['video_bruto'] || '')
+          record.set('video_editado', d['video_editado'] || '')
+          record.set('editor', d['editor'] || '')
 
           $app.saveNoValidate(record)
 

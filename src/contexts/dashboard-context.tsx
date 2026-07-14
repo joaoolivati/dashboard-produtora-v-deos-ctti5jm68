@@ -76,14 +76,14 @@ const parseMonthYear = (str: string): number => {
 
 const mapToVideoRecord = (s: ServicoRecord): VideoRecord => ({
   id: s.id,
-  dataDoServico: formatDate(s.data_entrega),
-  mesFaturamento: s.status || '',
-  valor: s.valor || 0,
+  dataDoServico: formatDate(s.data_servico),
+  mesFaturamento: s.mes_faturamento || '',
+  valor: s.valores || 0,
   identificacao: s.identificacao || '',
-  especialista: s.cliente || '',
-  editor: '',
-  tipoDeVideo: s.categoria || '',
-  horasEditadas: 0,
+  especialista: s.especialista || '',
+  editor: s.editor || '',
+  tipoDeVideo: s.tipo_video || '',
+  horasEditadas: parseDurationToHours(s.video_editado || ''),
 })
 
 export const DashboardProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
