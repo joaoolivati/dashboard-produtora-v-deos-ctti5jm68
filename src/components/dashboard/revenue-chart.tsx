@@ -97,7 +97,7 @@ export function RevenueChart() {
       style={{ animationDelay: '100ms' }}
     >
       <CardHeader>
-        <CardTitle>Evolução de Faturamento</CardTitle>
+        <CardTitle className="font-bold tracking-tight">Evolução de Faturamento</CardTitle>
         <CardDescription>Crescimento diário acumulado no mês selecionado</CardDescription>
       </CardHeader>
       <CardContent className="flex-1 min-h-[300px]">

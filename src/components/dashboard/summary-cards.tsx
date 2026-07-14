@@ -44,10 +44,10 @@ export function SummaryCards() {
           <CardTitle className="text-sm font-medium text-muted-foreground">
             Faturamento Total
           </CardTitle>
-          <DollarSign className="h-4 w-4 text-primary" />
+          <DollarSign className="h-4 w-4 text-primary" strokeWidth={1.5} />
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold font-mono text-foreground">
+          <div className="text-3xl font-bold font-mono tracking-tight text-foreground">
             {formatCurrency(metrics.totalRevenue)}
           </div>
           <p className="text-xs text-muted-foreground mt-1">No mês selecionado</p>
@@ -60,10 +60,10 @@ export function SummaryCards() {
           <CardTitle className="text-sm font-medium text-muted-foreground">
             Total de Vídeos
           </CardTitle>
-          <Video className="h-4 w-4 text-chart-2" />
+          <Video className="h-4 w-4 text-chart-2" strokeWidth={1.5} />
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold font-mono text-foreground">
+          <div className="text-3xl font-bold font-mono tracking-tight text-foreground">
             {formatNumber(metrics.totalVideos)}
           </div>
           <p className="text-xs text-muted-foreground mt-1">Projetos finalizados</p>
@@ -74,10 +74,10 @@ export function SummaryCards() {
         <div className="absolute inset-0 bg-gradient-to-br from-chart-3/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium text-muted-foreground">Ticket Médio</CardTitle>
-          <Target className="h-4 w-4 text-chart-3" />
+          <Target className="h-4 w-4 text-chart-3" strokeWidth={1.5} />
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold font-mono text-foreground">
+          <div className="text-3xl font-bold font-mono tracking-tight text-foreground">
             {formatCurrency(metrics.avgTicket)}
           </div>
           <p className="text-xs text-muted-foreground mt-1">Por vídeo editado</p>
@@ -90,10 +90,10 @@ export function SummaryCards() {
           <CardTitle className="text-sm font-medium text-muted-foreground">
             Total de Horas
           </CardTitle>
-          <Clock className="h-4 w-4 text-chart-4" />
+          <Clock className="h-4 w-4 text-chart-4" strokeWidth={1.5} />
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold font-mono text-foreground">
+          <div className="text-3xl font-bold font-mono tracking-tight text-foreground">
             {formatNumber(metrics.totalHours)}h
           </div>
           <p className="text-xs text-muted-foreground mt-1">Horas produtivas</p>

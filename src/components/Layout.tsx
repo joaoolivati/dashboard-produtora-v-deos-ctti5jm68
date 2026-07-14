@@ -8,7 +8,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { RefreshCcw } from 'lucide-react'
+import { RefreshCcw, Clapperboard } from 'lucide-react'
 import { format } from 'date-fns'
 
 export default function Layout() {
@@ -20,22 +20,22 @@ export default function Layout() {
       <header className="sticky top-0 z-30 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 shadow-sm">
         <div className="container flex h-16 items-center justify-between">
           <div className="flex items-center gap-4">
-            <h1 className="font-serif text-xl font-bold tracking-tight text-foreground hidden sm:block">
+            <Clapperboard className="h-6 w-6 text-primary" strokeWidth={1.5} />
+            <h1 className="font-sans text-lg font-bold tracking-tight text-foreground hidden sm:block">
               Production Analytics
             </h1>
           </div>
 
           <div className="flex items-center gap-2 sm:gap-4">
-            <div className="flex items-center gap-2 text-xs text-muted-foreground mr-2 hidden md:flex">
-              <button
-                onClick={refetch}
-                disabled={loading}
-                className="flex items-center gap-1 hover:text-foreground transition-colors"
-                title="Refresh data"
-              >
-                <RefreshCcw className={`h-3 w-3 ${loading ? 'animate-spin' : ''}`} />
-                {lastUpdated ? format(lastUpdated, 'HH:mm') : '--:--'}
-              </button>
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground mr-2 hidden md:flex">
+              <RefreshCcw
+                className={`h-3 w-3 ${loading ? 'animate-spin' : ''}`}
+                strokeWidth={1.5}
+              />
+              <span>
+                Última atualização: hoje às{' '}
+                {lastUpdated ? `${format(lastUpdated, 'HH:mm')}h` : '--:--h'}
+              </span>
             </div>
 
             <Select value={selectedMonth} onValueChange={setSelectedMonth} disabled={loading}>

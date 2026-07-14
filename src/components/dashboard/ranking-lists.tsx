@@ -5,7 +5,7 @@ import { formatCurrency, formatNumber } from '@/lib/utils'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Separator } from '@/components/ui/separator'
-import { Trophy, TrendingUp } from 'lucide-react'
+import { Trophy, Award } from 'lucide-react'
 
 export function RankingLists() {
   const { filteredData, loading } = useDashboardContext()
@@ -78,8 +78,8 @@ export function RankingLists() {
       <Card className="premium-card flex-1">
         <CardHeader className="pb-3">
           <div className="flex items-center gap-2">
-            <Trophy className="h-5 w-5 text-yellow-500" />
-            <CardTitle className="text-lg">Top Clientes</CardTitle>
+            <Trophy className="h-5 w-5 text-yellow-500" strokeWidth={1.5} />
+            <CardTitle className="text-lg font-bold tracking-tight">Top Clientes</CardTitle>
           </div>
           <CardDescription>Os clientes que mais geraram receita no mês</CardDescription>
         </CardHeader>
@@ -98,7 +98,7 @@ export function RankingLists() {
                       <p className="text-sm font-medium text-foreground truncate">{client.name}</p>
                     </div>
                     <div className="text-right">
-                      <p className="text-sm font-bold font-mono text-foreground">
+                      <p className="text-sm font-bold font-mono tracking-tight text-foreground">
                         {formatCurrency(client.rev)}
                       </p>
                     </div>
@@ -120,8 +120,10 @@ export function RankingLists() {
       <Card className="premium-card flex-1">
         <CardHeader className="pb-3">
           <div className="flex items-center gap-2">
-            <TrendingUp className="h-5 w-5 text-chart-1" />
-            <CardTitle className="text-lg">Desempenho dos Editores</CardTitle>
+            <Award className="h-5 w-5 text-chart-1" strokeWidth={1.5} />
+            <CardTitle className="text-lg font-bold tracking-tight">
+              Desempenho dos Editores
+            </CardTitle>
           </div>
           <CardDescription>Performance por faturamento e volume</CardDescription>
         </CardHeader>
@@ -143,7 +145,7 @@ export function RankingLists() {
                       </p>
                     </div>
                     <div className="text-right">
-                      <p className="text-sm font-bold font-mono text-foreground">
+                      <p className="text-sm font-bold font-mono tracking-tight text-foreground">
                         {formatCurrency(editor.rev)}
                       </p>
                     </div>
