@@ -55,7 +55,10 @@ export function SyncPanel() {
       loadHistory()
     } catch (err: any) {
       const message =
-        err?.response?.error || err?.message || 'Erro ao sincronizar. Tente novamente.'
+        err?.response?.error ||
+        err?.message ||
+        (err instanceof Error ? err.message : null) ||
+        'Erro ao sincronizar com a planilha. Tente novamente.'
       toast.error(message)
     } finally {
       setSyncing(false)

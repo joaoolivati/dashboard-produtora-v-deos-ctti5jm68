@@ -1,7 +1,6 @@
 cronAdd('sync_google_sheets', '0 * * * *', () => {
   const CSV_URL =
     'https://docs.google.com/spreadsheets/d/1buDNmxDKscXwe7iGNSwYEAVcm7646dsPpMHTSPyYg-I/gviz/tq?tqx=out:csv&sheet=BASE_GERAL'
-  const BATCH_SIZE = 1000
   const HTTP_TIMEOUT = 120
 
   $app.logger().info('sync_google_sheets: starting hourly sync')
@@ -27,7 +26,15 @@ cronAdd('sync_google_sheets', '0 * * * *', () => {
 
   let res
   try {
-    res = $http.send({ url: CSV_URL, method: 'GET', timeout: HTTP_TIMEOUT })
+    res = $http.send({
+      url: CSV_URL,
+      method: 'GET',
+      timeout: HTTP_TIMEOUT,
+      headers: {
+        Accept: 'text/csv, text/plain, */*',
+        'Accept-Encoding': 'identity',
+      },
+    })
   } catch (err) {
     $app.logger().error('sync_google_sheets: HTTP request failed', 'error', String(err))
     logSync('error', 0, 0, 'HTTP request failed: ' + String(err))
@@ -42,14 +49,31 @@ cronAdd('sync_google_sheets', '0 * * * *', () => {
 
   let csvText = ''
   try {
+    if (!res.body) {
+      logSync('error', 0, 0, 'Empty response body from Google Sheets')
+      return
+    }
     if (typeof res.body === 'string') {
       csvText = res.body
     } else {
-      csvText = new TextDecoder().decode(res.body)
+      try {
+        csvText = new TextDecoder().decode(res.body)
+      } catch (_) {
+        csvText = String(res.body)
+      }
     }
   } catch (err) {
     $app.logger().error('sync_google_sheets: failed to decode body', 'error', String(err))
     logSync('error', 0, 0, 'Failed to decode response: ' + String(err))
+    return
+  }
+
+  if (
+    csvText.indexOf('<!DOCTYPE') > -1 ||
+    csvText.indexOf('<html') > -1 ||
+    csvText.indexOf('<HTML') > -1
+  ) {
+    logSync('error', 0, 0, 'Google Sheets returned HTML instead of CSV')
     return
   }
 
@@ -98,8 +122,31 @@ cronAdd('sync_google_sheets', '0 * * * *', () => {
     return obj
   })
 
-  const totalRecords = dataRows.length
-  $app.logger().info('sync_google_sheets: parsed CSV', 'totalRecords', totalRecords)
+  const dedupedMap = {}
+  const dedupedKeys = []
+  for (let i = 0; i < dataRows.length; i++) {
+    const ident = (dataRows[i]['identificacao'] || '').trim()
+    const key = ident || '__no_ident_' + i
+    if (!dedupedMap[key]) {
+      dedupedKeys.push(key)
+    }
+    dedupedMap[key] = dataRows[i]
+  }
+  const dedupedRows = []
+  for (let k = 0; k < dedupedKeys.length; k++) {
+    dedupedRows.push(dedupedMap[dedupedKeys[k]])
+  }
+
+  const totalRecords = dedupedRows.length
+  $app
+    .logger()
+    .info(
+      'sync_google_sheets: parsed CSV',
+      'totalRecords',
+      totalRecords,
+      'originalRows',
+      dataRows.length,
+    )
 
   let col
   try {
@@ -136,86 +183,103 @@ cronAdd('sync_google_sheets', '0 * * * *', () => {
     )
 
   let saved = 0
-  const totalBatches = Math.ceil(totalRecords / BATCH_SIZE)
+  let errorCount = 0
 
   try {
-    for (let b = 0; b < totalBatches; b++) {
-      const batchStart = b * BATCH_SIZE
-      const batchEnd = Math.min(batchStart + BATCH_SIZE, totalRecords)
+    for (let i = 0; i < totalRecords; i++) {
+      try {
+        const d = dedupedRows[i]
+        const ident = (d['identificacao'] || '').trim()
 
-      $app.runInTransaction((txApp) => {
-        for (let i = batchStart; i < batchEnd; i++) {
-          const d = dataRows[i]
-          const ident = (d['identificacao'] || '').trim()
-
-          let record
-          if (ident && existingMap[ident]) {
-            try {
-              record = txApp.findRecordById('servicos', existingMap[ident])
-            } catch (_) {
-              record = new Record(col)
-            }
-          } else {
+        let record
+        if (ident && existingMap[ident]) {
+          try {
+            record = $app.findRecordById('servicos', existingMap[ident])
+          } catch (_) {
             record = new Record(col)
           }
-
-          let dataServico = d['data_servico'] || ''
-          if (dataServico) {
-            const slashParts = dataServico.split('/')
-            if (slashParts.length === 3) {
-              let day = slashParts[0]
-              let month = slashParts[1]
-              const year = slashParts[2]
-              if (day.length < 2) day = '0' + day
-              if (month.length < 2) month = '0' + month
-              dataServico = year + '-' + month + '-' + day
-            }
-          }
-          if (!dataServico) dataServico = new Date().toISOString().slice(0, 10)
-
-          let rawVal = (d['valores'] || '0').toString()
-          rawVal = rawVal.replace(/[^0-9.,-]/g, '')
-          if (rawVal.indexOf(',') > -1 && rawVal.indexOf('.') > -1) {
-            rawVal = rawVal.replace(/\./g, '').replace(',', '.')
-          } else if (rawVal.indexOf(',') > -1) {
-            rawVal = rawVal.replace(',', '.')
-          }
-          let valores = parseFloat(rawVal)
-          if (isNaN(valores)) valores = 0
-
-          record.set('data_servico', dataServico)
-          record.set('especialista', d['especialista'] || '')
-          record.set('tipo_video', d['tipo_video'] || '')
-          record.set('identificacao', ident)
-          record.set('video_bruto', d['video_bruto'] || '')
-          record.set('video_editado', d['video_editado'] || '')
-          record.set('valores', valores)
-          record.set('observacoes', d['observacoes'] || '')
-          record.set('editor', d['editor'] || '')
-          record.set('mes_faturamento', d['mes_faturamento'] || '')
-
-          txApp.saveNoValidate(record)
-
-          if (ident && record.id) existingMap[ident] = record.id
-          saved++
+        } else {
+          record = new Record(col)
         }
-      })
 
-      $app
-        .logger()
-        .info(
-          'sync_google_sheets: batch completed',
-          'batch',
-          b + 1,
-          'of',
-          totalBatches,
-          'saved',
-          saved,
-        )
+        let dataServico = d['data_servico'] || ''
+        if (dataServico) {
+          const slashParts = dataServico.split('/')
+          if (slashParts.length === 3) {
+            let day = slashParts[0]
+            let month = slashParts[1]
+            const year = slashParts[2]
+            if (day.length < 2) day = '0' + day
+            if (month.length < 2) month = '0' + month
+            dataServico = year + '-' + month + '-' + day
+          }
+        }
+        if (!dataServico) dataServico = new Date().toISOString().slice(0, 10)
+
+        let rawVal = (d['valores'] || '0').toString()
+        rawVal = rawVal.replace(/[^0-9.,-]/g, '')
+        if (rawVal.indexOf(',') > -1 && rawVal.indexOf('.') > -1) {
+          rawVal = rawVal.replace(/\./g, '').replace(',', '.')
+        } else if (rawVal.indexOf(',') > -1) {
+          rawVal = rawVal.replace(',', '.')
+        }
+        let valores = parseFloat(rawVal)
+        if (isNaN(valores)) valores = 0
+
+        record.set('data_servico', dataServico)
+        record.set('especialista', d['especialista'] || '')
+        record.set('tipo_video', d['tipo_video'] || '')
+        record.set('identificacao', ident)
+        record.set('video_bruto', d['video_bruto'] || '')
+        record.set('video_editado', d['video_editado'] || '')
+        record.set('valores', valores)
+        record.set('observacoes', d['observacoes'] || '')
+        record.set('editor', d['editor'] || '')
+        record.set('mes_faturamento', d['mes_faturamento'] || '')
+
+        $app.saveNoValidate(record)
+
+        if (ident && record.id) existingMap[ident] = record.id
+        saved++
+      } catch (recordErr) {
+        errorCount++
+        if (errorCount <= 10) {
+          $app
+            .logger()
+            .warn('sync_google_sheets: skipped record', 'index', i, 'error', String(recordErr))
+        }
+      }
+
+      if ((i + 1) % 500 === 0) {
+        $app
+          .logger()
+          .info(
+            'sync_google_sheets: progress',
+            'processed',
+            i + 1,
+            'of',
+            totalRecords,
+            'saved',
+            saved,
+            'errors',
+            errorCount,
+          )
+      }
     }
 
-    logSync('success', totalRecords, saved, '')
-    $app.logger().info('sync_google_sheets: sync completed', 'saved', saved, 'total', totalRecords)
+    const errorLog = errorCount > 0 ? errorCount + ' records skipped due to errors' : ''
+    logSync('success', totalRecords, saved, errorLog)
+    $app
+      .logger()
+      .info(
+        'sync_google_sheets: sync completed',
+        'saved',
+        saved,
+        'total',
+        totalRecords,
+        'errors',
+        errorCount,
+      )
   } catch (err) {
     $app.logger().error('sync_google_sheets: upsert failed', 'error', String(err))
     logSync('error', totalRecords, saved, 'Upsert failed: ' + String(err))
