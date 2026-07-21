@@ -50,6 +50,37 @@ const aggregateByDay = (records: VideoRecord[]): Record<number, number> => {
   return byDay
 }
 
+const parseMonthYear = (str: string): number => {
+  if (!str) return 0
+  const parts = str.toUpperCase().split('/')
+  if (parts.length !== 2) return 0
+  const monthNum = MONTH_MAP[parts[0].trim()]
+  if (!monthNum) return 0
+  const yearNum = parseInt(parts[1].trim())
+  const fullYear = yearNum < 100 ? 2000 + yearNum : yearNum
+  return fullYear * 100 + monthNum
+}
+
+const get6MonthWindow = (selectedMonth: string): { start: number; end: number } => {
+  const selectedVal = parseMonthYear(selectedMonth)
+  if (!selectedVal) return { start: 0, end: 0 }
+  const selMonth = selectedVal % 100
+  const selYear = Math.floor(selectedVal / 100)
+  let endMonth = selMonth - 1
+  let endYear = selYear
+  if (endMonth === 0) {
+    endMonth = 12
+    endYear--
+  }
+  let startMonth = endMonth - 5
+  let startYear = endYear
+  while (startMonth <= 0) {
+    startMonth += 12
+    startYear--
+  }
+  return { start: startYear * 100 + startMonth, end: endYear * 100 + endMonth }
+}
+
 export function generatePrediction(
   currentData: VideoRecord[],
   allData: VideoRecord[],
@@ -84,7 +115,11 @@ export function computePrediction(
   const currentDay = sortedDays[sortedDays.length - 1]
   const currentTotal = cumulative
 
-  const histData = allData.filter((d) => d.mesFaturamento !== selectedMonth)
+  const window = get6MonthWindow(selectedMonth)
+  const histData = allData.filter((d) => {
+    const val = parseMonthYear(d.mesFaturamento)
+    return val >= window.start && val <= window.end
+  })
   const histByMonth: Record<string, VideoRecord[]> = {}
   histData.forEach((r) => {
     const m = r.mesFaturamento

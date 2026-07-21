@@ -45,7 +45,7 @@ export function ProjectionCard() {
           <p className="text-sm font-medium text-muted-foreground">Projeção de Fechamento</p>
           <TrendingUp className="h-4 w-4 text-muted-foreground" strokeWidth={1.5} />
         </div>
-        <div className="text-3xl font-bold font-mono tracking-tight text-foreground">
+        <div className="text-3xl font-bold font-mono tracking-tight text-foreground select-text">
           {formatCurrency(projection.projected)}
         </div>
         <p className="text-xs text-muted-foreground mt-1">Estimativa comportamental para o mês</p>
@@ -53,13 +53,13 @@ export function ProjectionCard() {
         <div className="flex items-center gap-6">
           <div>
             <p className="text-xs text-muted-foreground mb-0.5">Média diária</p>
-            <p className="text-sm font-semibold font-mono tracking-tight text-foreground">
+            <p className="text-sm font-semibold font-mono tracking-tight text-foreground select-text">
               {formatCurrency(projection.dailyAvg)}
             </p>
           </div>
           <div>
             <p className="text-xs text-muted-foreground mb-0.5">Realizado até agora</p>
-            <p className="text-sm font-semibold font-mono tracking-tight text-foreground">
+            <p className="text-sm font-semibold font-mono tracking-tight text-foreground select-text">
               {formatCurrency(projection.total)}
             </p>
           </div>

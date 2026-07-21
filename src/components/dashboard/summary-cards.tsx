@@ -49,7 +49,7 @@ export function SummaryCards() {
           <DollarSign className="h-4 w-4 text-primary" strokeWidth={1.5} />
         </CardHeader>
         <CardContent>
-          <div className="text-3xl font-bold font-mono tracking-tight text-foreground">
+          <div className="text-3xl font-bold font-mono tracking-tight text-foreground select-text">
             {formatCurrency(metrics.totalRevenue)}
           </div>
           <p className="text-xs text-muted-foreground mt-1">No mês selecionado</p>
