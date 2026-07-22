@@ -107,22 +107,6 @@ cronAdd('sync_google_sheets', '0 6 * * *', () => {
     return parts.join('|')
   }
 
-  var repointDeliveries = (oldServicoId, newServicoId) => {
-    try {
-      var deliveries = $app.findRecordsByFilter(
-        'deliveries',
-        "demandId = '" + oldServicoId + "'",
-        '',
-        100,
-        0,
-      )
-      for (var i = 0; i < deliveries.length; i++) {
-        deliveries[i].set('demandId', newServicoId)
-        $app.saveNoValidate(deliveries[i])
-      }
-    } catch (_) {}
-  }
-
   let res
   try {
     res = $http.send({
@@ -278,7 +262,6 @@ cronAdd('sync_google_sheets', '0 6 * * *', () => {
 
   for (var d = 0; d < duplicatesToDelete.length; d++) {
     var dup = duplicatesToDelete[d]
-    repointDeliveries(dup.record.id, dup.survivorId)
     try {
       $app.delete(dup.record)
     } catch (_) {}

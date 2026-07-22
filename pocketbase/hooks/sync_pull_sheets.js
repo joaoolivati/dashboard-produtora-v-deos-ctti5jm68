@@ -1,14 +1,12 @@
-// @deps zod@4.4.3
 routerAdd(
   'POST',
   '/backend/v1/sync-pull-sheets',
   (e) => {
-    const { z } = require('zod')
-    const bodySchema = z.object({ force: z.boolean().optional() })
-    const parsed = bodySchema.safeParse(e.requestInfo().body || {})
-    if (!parsed.success) {
+    var rawBody = e.requestInfo().body || {}
+    if (rawBody.force !== undefined && typeof rawBody.force !== 'boolean') {
       return e.badRequestError('Corpo da requisição inválido')
     }
+    var parsed = { data: rawBody }
 
     const SPREADSHEET_ID = '1buDNmxDKscXwe7iGNSwYEAVcm7646dsPpMHTSPyYg-I'
     const RANGE = 'BASE_GERAL'
@@ -116,22 +114,6 @@ routerAdd(
         normalizeValor(d.valores),
       ]
       return parts.join('|')
-    }
-
-    var repointDeliveries = (oldServicoId, newServicoId) => {
-      try {
-        var deliveries = $app.findRecordsByFilter(
-          'deliveries',
-          "demandId = '" + oldServicoId + "'",
-          '',
-          100,
-          0,
-        )
-        for (var i = 0; i < deliveries.length; i++) {
-          deliveries[i].set('demandId', newServicoId)
-          $app.saveNoValidate(deliveries[i])
-        }
-      } catch (_) {}
     }
 
     let res
@@ -300,12 +282,10 @@ routerAdd(
 
     for (var d = 0; d < duplicatesToDelete.length; d++) {
       var dup = duplicatesToDelete[d]
-      repointDeliveries(dup.record.id, dup.survivorId)
       try {
         $app.delete(dup.record)
       } catch (_) {}
     }
-
     var created = 0
     var updated = 0
     var skippedCount = skippedNoId.length
