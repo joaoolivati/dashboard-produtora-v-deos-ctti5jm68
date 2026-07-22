@@ -6,6 +6,9 @@ export interface SyncResult {
   rowsSaved: number
   status: string
   error?: string
+  created?: number
+  updated?: number
+  skipped?: number
 }
 
 export const triggerManualSync = async (): Promise<SyncResult> => {

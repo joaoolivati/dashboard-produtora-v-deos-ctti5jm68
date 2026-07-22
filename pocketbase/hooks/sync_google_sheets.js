@@ -10,13 +10,11 @@ cronAdd('sync_google_sheets', '0 6 * * *', () => {
     '?key=' +
     API_KEY
   const HTTP_TIMEOUT = 120
-  const BATCH_SIZE = 1000
-  const TX_SIZE = 200
 
-  $app.logger().info('sync_google_sheets: starting scheduled sync')
+  $app.logger().info('sync_google_sheets: iniciando sincronização agendada')
 
   if (!API_KEY) {
-    $app.logger().error('sync_google_sheets: GOOGLE_API_KEY secret is not set')
+    $app.logger().error('sync_google_sheets: GOOGLE_API_KEY não configurado')
     return
   }
 
@@ -35,7 +33,7 @@ cronAdd('sync_google_sheets', '0 6 * * *', () => {
       logRecord.set('error_log', errorLog || '')
       $app.saveNoValidate(logRecord)
     } catch (err) {
-      $app.logger().error('sync_google_sheets: failed to log sync history', 'error', String(err))
+      $app.logger().error('sync_google_sheets: erro ao registrar histórico', 'error', String(err))
     }
   }
 
@@ -48,14 +46,14 @@ cronAdd('sync_google_sheets', '0 6 * * *', () => {
       headers: { Accept: 'application/json' },
     })
   } catch (err) {
-    $app.logger().error('sync_google_sheets: HTTP request failed', 'error', String(err))
-    logSync('error', 0, 0, 'HTTP request failed: ' + String(err))
+    $app.logger().error('sync_google_sheets: falha na requisição HTTP', 'error', String(err))
+    logSync('error', 0, 0, 'Falha na requisição HTTP: ' + String(err))
     return
   }
 
   if (res.statusCode !== 200) {
-    $app.logger().error('sync_google_sheets: non-200 response', 'statusCode', res.statusCode)
-    let errMsg = 'Google Sheets API returned status ' + res.statusCode
+    $app.logger().error('sync_google_sheets: resposta não-200', 'statusCode', res.statusCode)
+    let errMsg = 'Google Sheets API retornou status ' + res.statusCode
     if (res.json && res.json.error && res.json.error.message) {
       errMsg = res.json.error.message
     }
@@ -68,21 +66,21 @@ cronAdd('sync_google_sheets', '0 6 * * *', () => {
     try {
       responseBody = JSON.parse(res.body)
     } catch (parseErr) {
-      logSync('error', 0, 0, 'Failed to parse JSON response: ' + String(parseErr))
+      logSync('error', 0, 0, 'Erro ao parsear JSON: ' + String(parseErr))
       return
     }
   }
 
   if (!responseBody || !Array.isArray(responseBody.values)) {
-    logSync('error', 0, 0, 'Google Sheets API response did not contain a values array')
+    logSync('error', 0, 0, 'Resposta da API não contém array de valores')
     return
   }
 
   const values = responseBody.values
-  $app.logger().info('sync_google_sheets: received values from API', 'totalRows', values.length)
+  $app.logger().info('sync_google_sheets: valores recebidos', 'totalRows', values.length)
 
   if (values.length < 2) {
-    logSync('error', 0, 0, 'No data rows found — need at least 2 rows (got ' + values.length + ')')
+    logSync('error', 0, 0, 'Nenhuma linha de dados encontrada — necessário ao menos 2 linhas')
     return
   }
 
@@ -124,6 +122,39 @@ cronAdd('sync_google_sheets', '0 6 * * *', () => {
     return String(val).trim()
   }
 
+  var normalizeKey = (raw) => {
+    return (raw || '').toString().trim().toLowerCase().replace(/\s+/g, ' ')
+  }
+
+  var normalizeValor = (raw) => {
+    if (typeof raw === 'number') return String(raw)
+    var v = (raw || '0').toString().trim()
+    v = v
+      .replace(/R\$/gi, '')
+      .replace(/\s/g, '')
+      .replace(/[^\d.,-]/g, '')
+    if (!v) return '0'
+    if (v.indexOf(',') > -1 && v.indexOf('.') > -1) {
+      v = v.replace(/\./g, '').replace(',', '.')
+    } else if (v.indexOf(',') > -1) {
+      v = v.replace(',', '.')
+    }
+    var n = parseFloat(v)
+    return isNaN(n) ? '0' : String(n)
+  }
+
+  var buildImportKey = (d) => {
+    var parts = [
+      normalizeKey(d.mes_faturamento),
+      normalizeKey(parseDate(d.data_servico)),
+      normalizeKey(d.especialista),
+      normalizeKey(d.tipo_video),
+      normalizeKey(d.identificacao),
+      normalizeValor(d.valores),
+    ]
+    return parts.join('|')
+  }
+
   var dataRows = []
   for (var i = 1; i < values.length; i++) {
     var row = values[i]
@@ -153,8 +184,8 @@ cronAdd('sync_google_sheets', '0 6 * * *', () => {
   const dedupedMap = {}
   const dedupedKeys = []
   for (let i = 0; i < dataRows.length; i++) {
-    const ident = (dataRows[i]['identificacao'] || '').trim()
-    const key = ident || '__no_ident_' + i
+    const key = buildImportKey(dataRows[i])
+    dataRows[i]._importKey = key
     if (!dedupedMap[key]) {
       dedupedKeys.push(key)
     }
@@ -166,7 +197,7 @@ cronAdd('sync_google_sheets', '0 6 * * *', () => {
   $app
     .logger()
     .info(
-      'sync_google_sheets: deduped records',
+      'sync_google_sheets: registros deduplicados',
       'totalRecords',
       totalRecords,
       'originalRows',
@@ -177,106 +208,109 @@ cronAdd('sync_google_sheets', '0 6 * * *', () => {
   try {
     col = $app.findCollectionByNameOrId('servicos')
   } catch (err) {
-    logSync('error', totalRecords, 0, 'servicos collection not found: ' + String(err))
+    logSync('error', totalRecords, 0, 'Coleção servicos não encontrada: ' + String(err))
     return
   }
 
-  $app.logger().info('sync_google_sheets: clearing existing servicos records')
-  var deleteOffset = 0
-  while (true) {
-    var batch
-    try {
-      batch = $app.findRecordsByFilter('servicos', "id != ''", 'created', 500, deleteOffset)
-    } catch (_) {
-      break
+  var existingMap = {}
+  try {
+    var loadOffset = 0
+    while (true) {
+      var batch = $app.findRecordsByFilter('servicos', "id != ''", 'created', 500, loadOffset)
+      if (batch.length === 0) break
+      for (var b = 0; b < batch.length; b++) {
+        var key = batch[b].getString('importKey') || ''
+        if (key) {
+          existingMap[key] = batch[b]
+        }
+      }
+      if (batch.length < 500) break
+      loadOffset += 500
     }
-    if (batch.length === 0) break
-    for (var di = 0; di < batch.length; di++) {
-      try {
-        $app.delete(batch[di])
-      } catch (_) {}
-    }
-    if (batch.length < 500) break
+  } catch (err) {
+    $app
+      .logger()
+      .warn('sync_google_sheets: erro ao carregar registros existentes', 'error', String(err))
   }
-  $app.logger().info('sync_google_sheets: collection cleared')
 
-  let saved = 0
-  let errorCount = 0
+  let created = 0
+  let updated = 0
+  let skipped = 0
+  var skipReasons = []
 
   try {
-    for (let i = 0; i < totalRecords; i += BATCH_SIZE) {
-      const batchEnd = Math.min(i + BATCH_SIZE, totalRecords)
+    for (let i = 0; i < totalRecords; i++) {
+      try {
+        const d = dedupedRows[i]
+        const key = d._importKey
+        var existing = existingMap[key]
 
-      for (let j = i; j < batchEnd; j += TX_SIZE) {
-        const txEnd = Math.min(j + TX_SIZE, batchEnd)
-
-        $app.runInTransaction((txApp) => {
-          for (let k = j; k < txEnd; k++) {
-            try {
-              const d = dedupedRows[k]
-              const record = new Record(col)
-
-              record.set('data_servico', parseDate(d['data_servico']))
-              record.set('especialista', d['especialista'] || '')
-              record.set('tipo_video', d['tipo_video'] || '')
-              record.set('identificacao', d['identificacao'] || '')
-              record.set('video_bruto', d['video_bruto'] || '')
-              record.set('video_editado', d['video_editado'] || '')
-              record.set('valores', parseValores(d['valores']))
-              record.set('observacoes', d['observacoes'] || '')
-              record.set('editor', d['editor'] || '')
-              record.set('mes_faturamento', d['mes_faturamento'] || '')
-
-              txApp.saveNoValidate(record)
-              saved++
-            } catch (recordErr) {
-              errorCount++
-              if (errorCount <= 10) {
-                $app
-                  .logger()
-                  .warn(
-                    'sync_google_sheets: skipped record',
-                    'index',
-                    k,
-                    'error',
-                    String(recordErr),
-                  )
-              }
-            }
-          }
-        })
+        if (existing) {
+          existing.set('data_servico', parseDate(d.data_servico))
+          existing.set('especialista', d.especialista || '')
+          existing.set('tipo_video', d.tipo_video || '')
+          existing.set('identificacao', d.identificacao || '')
+          existing.set('video_bruto', d.video_bruto || '')
+          existing.set('video_editado', d.video_editado || '')
+          existing.set('valores', parseValores(d.valores))
+          existing.set('observacoes', d.observacoes || '')
+          existing.set('editor', d.editor || '')
+          existing.set('mes_faturamento', d.mes_faturamento || '')
+          existing.set('importKey', key)
+          $app.saveNoValidate(existing)
+          updated++
+        } else {
+          var record = new Record(col)
+          record.set('data_servico', parseDate(d.data_servico))
+          record.set('especialista', d.especialista || '')
+          record.set('tipo_video', d.tipo_video || '')
+          record.set('identificacao', d.identificacao || '')
+          record.set('video_bruto', d.video_bruto || '')
+          record.set('video_editado', d.video_editado || '')
+          record.set('valores', parseValores(d.valores))
+          record.set('observacoes', d.observacoes || '')
+          record.set('editor', d.editor || '')
+          record.set('mes_faturamento', d.mes_faturamento || '')
+          record.set('importKey', key)
+          $app.saveNoValidate(record)
+          created++
+          existingMap[key] = record
+        }
+      } catch (recordErr) {
+        skipped++
+        if (skipReasons.length < 10) {
+          skipReasons.push('Registro ' + i + ': ' + String(recordErr))
+        }
       }
-
-      $app
-        .logger()
-        .info(
-          'sync_google_sheets: progress',
-          'processed',
-          batchEnd,
-          'of',
-          totalRecords,
-          'saved',
-          saved,
-          'errors',
-          errorCount,
-        )
     }
 
-    const errorLog = errorCount > 0 ? errorCount + ' records skipped due to errors' : ''
-    logSync('success', totalRecords, saved, errorLog)
+    var summary =
+      'Linhas lidas: ' +
+      totalRecords +
+      ' | Criados: ' +
+      created +
+      ' | Atualizados: ' +
+      updated +
+      ' | Ignorados: ' +
+      skipped +
+      (skipReasons.length > 0 ? ' | Motivos: ' + skipReasons.join('; ') : '')
+
+    logSync('success', totalRecords, created + updated, summary)
     $app
       .logger()
       .info(
-        'sync_google_sheets: sync completed',
-        'saved',
-        saved,
+        'sync_google_sheets: sincronização concluída',
+        'created',
+        created,
+        'updated',
+        updated,
+        'skipped',
+        skipped,
         'total',
         totalRecords,
-        'errors',
-        errorCount,
       )
   } catch (err) {
-    $app.logger().error('sync_google_sheets: import failed', 'error', String(err))
-    logSync('error', totalRecords, saved, 'Import failed: ' + String(err))
+    $app.logger().error('sync_google_sheets: falha na importação', 'error', String(err))
+    logSync('error', totalRecords, created + updated, 'Falha na importação: ' + String(err))
   }
 })
