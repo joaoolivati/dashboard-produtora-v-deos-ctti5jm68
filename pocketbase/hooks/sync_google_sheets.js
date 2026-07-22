@@ -32,7 +32,7 @@ cronAdd('sync_google_sheets', '0 6 * * *', () => {
       r.set('error_log', errorLog || '')
       $app.saveNoValidate(r)
     } catch (err) {
-      $app.logger().error('sync_google_sheets: erro ao registrar historico', 'error', String(err))
+      $app.logger().error('sync_google_sheets: erro ao registrar historico: ' + String(err))
     }
   }
 
@@ -74,45 +74,6 @@ cronAdd('sync_google_sheets', '0 6 * * *', () => {
     return String(val).trim()
   }
 
-  var normalizeKey = (raw) => (raw || '').toString().trim().toLowerCase().replace(/\s+/g, ' ')
-
-  var normalizeValor = (raw) => {
-    if (typeof raw === 'number') return String(raw)
-    var v = (raw || '0').toString().trim()
-    v = v
-      .replace(/R\$/gi, '')
-      .replace(/\s/g, '')
-      .replace(/[^\d.,-]/g, '')
-    if (!v) return '0'
-    if (v.indexOf(',') > -1 && v.indexOf('.') > -1) {
-      v = v.replace(/\./g, '').replace(',', '.')
-    } else if (v.indexOf(',') > -1) {
-      v = v.replace(',', '.')
-    }
-    var n = parseFloat(v)
-    return isNaN(n) ? '0' : String(n)
-  }
-
-  var buildOldKeyFromSheet = (d) =>
-    [
-      normalizeKey(d.mes_faturamento),
-      normalizeKey(parseDate(d.data_servico)),
-      normalizeKey(d.especialista),
-      normalizeKey(d.tipo_video),
-      normalizeKey(d.identificacao),
-      normalizeValor(d.valores),
-    ].join('|')
-
-  var buildOldKeyFromRecord = (rec) =>
-    [
-      normalizeKey(rec.getString('mes_faturamento')),
-      normalizeKey(rec.getString('data_servico')),
-      normalizeKey(rec.getString('especialista')),
-      normalizeKey(rec.getString('tipo_video')),
-      normalizeKey(rec.getString('identificacao')),
-      normalizeValor(rec.get('valores')),
-    ].join('|')
-
   var res
   try {
     res = $http.send({
@@ -122,7 +83,7 @@ cronAdd('sync_google_sheets', '0 6 * * *', () => {
       headers: { Accept: 'application/json' },
     })
   } catch (err) {
-    $app.logger().error('sync_google_sheets: falha na requisicao HTTP', 'error', String(err))
+    $app.logger().error('sync_google_sheets: falha na requisicao HTTP: ' + String(err))
     logSync('error', 0, 0, 'Falha na requisicao HTTP: ' + String(err))
     return
   }
@@ -168,8 +129,33 @@ cronAdd('sync_google_sheets', '0 6 * * *', () => {
     return
   }
 
-  var dataRows = []
-  var skippedNoId = []
+  var col
+  try {
+    col = $app.findCollectionByNameOrId('servicos')
+  } catch (err) {
+    logSync('error', 0, 0, 'Colecao servicos nao encontrada: ' + String(err))
+    return
+  }
+
+  var existingMap = {}
+  var loadOffset = 0
+  while (true) {
+    var batch = $app.findRecordsByFilter('servicos', "id != ''", 'created', 500, loadOffset)
+    if (batch.length === 0) break
+    for (var b = 0; b < batch.length; b++) {
+      var idServ = batch[b].getString('id_servico') || ''
+      if (idServ) existingMap[idServ] = batch[b]
+    }
+    if (batch.length < 500) break
+    loadOffset += 500
+  }
+
+  var created = 0
+  var updated = 0
+  var skippedCount = 0
+  var monthStats = {}
+  var dedupedMap = {}
+
   for (var i = 1; i < values.length; i++) {
     var row = values[i]
     var isEmpty = true
@@ -182,218 +168,114 @@ cronAdd('sync_google_sheets', '0 6 * * *', () => {
     if (isEmpty) continue
 
     var exiId = cellStr(row, idServicoIdx)
+    var identificacao = cellStr(row, 3)
+    var mes = cellStr(row, 9) || 'sem_mes'
+
+    if (!monthStats[mes]) {
+      monthStats[mes] = { lidas: 0, criados: 0, atualizados: 0, ignoradas: 0, somaValores: 0 }
+    }
+    monthStats[mes].lidas++
+
     if (!exiId) {
-      skippedNoId.push({ identificacao: cellStr(row, 3), mes: cellStr(row, 9) })
+      skippedCount++
+      monthStats[mes].ignoradas++
+      $app
+        .logger()
+        .info(
+          'sync_google_sheets: pulado: sem ID_SERVICO - ' +
+            (identificacao || '(sem identificacao)'),
+        )
       continue
     }
 
-    dataRows.push({
-      data_servico: cellStr(row, 0),
-      especialista: cellStr(row, 1),
-      tipo_video: cellStr(row, 2),
-      identificacao: cellStr(row, 3),
-      video_bruto: cellStr(row, 4),
-      video_editado: cellStr(row, 5),
-      valores: cellStr(row, 6),
-      observacoes: cellStr(row, 7),
-      editor: cellStr(row, 8),
-      mes_faturamento: cellStr(row, 9),
-      id_servico: exiId,
-    })
-  }
+    var valoresRaw = cellStr(row, 6)
+    monthStats[mes].somaValores += parseValores(valoresRaw)
 
-  var dedupedMap = {}
-  var dedupedKeys = []
-  for (var i = 0; i < dataRows.length; i++) {
-    var key = dataRows[i].id_servico
-    if (!dedupedMap[key]) dedupedKeys.push(key)
-    dedupedMap[key] = dataRows[i]
-  }
-  var dedupedRows = dedupedKeys.map((k) => dedupedMap[k])
-  var totalRecords = dedupedRows.length
+    if (dedupedMap[exiId]) continue
+    dedupedMap[exiId] = true
 
-  var col
-  try {
-    col = $app.findCollectionByNameOrId('servicos')
-  } catch (err) {
-    logSync('error', totalRecords, 0, 'Colecao servicos nao encontrada: ' + String(err))
-    return
-  }
-
-  var existingByIdServico = {}
-  var existingByOldKey = {}
-  var needsReconciliation = false
-  var duplicatesToDelete = []
-
-  var loadOffset = 0
-  while (true) {
-    var batch = $app.findRecordsByFilter('servicos', "id != ''", 'created', 500, loadOffset)
-    if (batch.length === 0) break
-    for (var b = 0; b < batch.length; b++) {
-      var rec = batch[b]
-      var idServ = rec.getString('id_servico') || ''
-      if (idServ) {
-        if (existingByIdServico[idServ]) {
-          if (rec.getString('created') > existingByIdServico[idServ].getString('created')) {
-            duplicatesToDelete.push(existingByIdServico[idServ])
-            existingByIdServico[idServ] = rec
-          } else {
-            duplicatesToDelete.push(rec)
-          }
-        } else {
-          existingByIdServico[idServ] = rec
-        }
-      } else {
-        needsReconciliation = true
-        var oldKey = buildOldKeyFromRecord(rec)
-        if (existingByOldKey[oldKey]) {
-          if (rec.getString('created') > existingByOldKey[oldKey].getString('created')) {
-            duplicatesToDelete.push(existingByOldKey[oldKey])
-            existingByOldKey[oldKey] = rec
-          } else {
-            duplicatesToDelete.push(rec)
-          }
-        } else {
-          existingByOldKey[oldKey] = rec
-        }
-      }
-    }
-    if (batch.length < 500) break
-    loadOffset += 500
-  }
-
-  for (var d = 0; d < duplicatesToDelete.length; d++) {
     try {
-      $app.delete(duplicatesToDelete[d])
-    } catch (_) {}
-  }
-
-  var created = 0
-  var updated = 0
-  var skippedCount = skippedNoId.length
-  var monthStats = {}
-
-  for (var si = 0; si < skippedNoId.length; si++) {
-    var skipMes = skippedNoId[si].mes || 'sem_mes'
-    if (!monthStats[skipMes]) {
-      monthStats[skipMes] = { lidas: 0, criados: 0, atualizados: 0, ignoradas: 0, somaValores: 0 }
-    }
-    monthStats[skipMes].lidas++
-    monthStats[skipMes].ignoradas++
-    $app
-      .logger()
-      .info(
-        'sync_google_sheets: ignorado: sem ID_SERVICO',
-        'identificacao',
-        skippedNoId[si].identificacao || '(sem identificacao)',
-        'mes',
-        skipMes,
-      )
-  }
-
-  for (var i = 0; i < totalRecords; i++) {
-    try {
-      var d = dedupedRows[i]
-      var exiId = d.id_servico
-      var mes = d.mes_faturamento || 'sem_mes'
-
-      if (!monthStats[mes]) {
-        monthStats[mes] = { lidas: 0, criados: 0, atualizados: 0, ignoradas: 0, somaValores: 0 }
-      }
-      monthStats[mes].lidas++
-      monthStats[mes].somaValores += parseValores(d.valores)
-
-      var existing = existingByIdServico[exiId]
-
-      if (!existing && needsReconciliation) {
-        var oldKey = buildOldKeyFromSheet(d)
-        existing = existingByOldKey[oldKey]
-        if (existing) delete existingByOldKey[oldKey]
-      }
-
+      var existing = existingMap[exiId]
       if (existing) {
-        existing.set('data_servico', parseDate(d.data_servico))
-        existing.set('especialista', d.especialista || '')
-        existing.set('tipo_video', d.tipo_video || '')
-        existing.set('identificacao', d.identificacao || '')
-        existing.set('video_bruto', d.video_bruto || '')
-        existing.set('video_editado', d.video_editado || '')
-        existing.set('valores', parseValores(d.valores))
-        existing.set('observacoes', d.observacoes || '')
-        existing.set('editor', d.editor || '')
-        existing.set('mes_faturamento', d.mes_faturamento || '')
+        existing.set('data_servico', parseDate(cellStr(row, 0)))
+        existing.set('especialista', cellStr(row, 1))
+        existing.set('tipo_video', cellStr(row, 2))
+        existing.set('identificacao', identificacao)
+        existing.set('video_bruto', cellStr(row, 4))
+        existing.set('video_editado', cellStr(row, 5))
+        existing.set('valores', parseValores(valoresRaw))
+        existing.set('observacoes', cellStr(row, 7))
+        existing.set('editor', cellStr(row, 8))
+        existing.set('mes_faturamento', cellStr(row, 9))
         existing.set('id_servico', exiId)
         $app.saveNoValidate(existing)
         updated++
         monthStats[mes].atualizados++
-        existingByIdServico[exiId] = existing
       } else {
         var record = new Record(col)
-        record.set('data_servico', parseDate(d.data_servico))
-        record.set('especialista', d.especialista || '')
-        record.set('tipo_video', d.tipo_video || '')
-        record.set('identificacao', d.identificacao || '')
-        record.set('video_bruto', d.video_bruto || '')
-        record.set('video_editado', d.video_editado || '')
-        record.set('valores', parseValores(d.valores))
-        record.set('observacoes', d.observacoes || '')
-        record.set('editor', d.editor || '')
-        record.set('mes_faturamento', d.mes_faturamento || '')
+        record.set('data_servico', parseDate(cellStr(row, 0)))
+        record.set('especialista', cellStr(row, 1))
+        record.set('tipo_video', cellStr(row, 2))
+        record.set('identificacao', identificacao)
+        record.set('video_bruto', cellStr(row, 4))
+        record.set('video_editado', cellStr(row, 5))
+        record.set('valores', parseValores(valoresRaw))
+        record.set('observacoes', cellStr(row, 7))
+        record.set('editor', cellStr(row, 8))
+        record.set('mes_faturamento', cellStr(row, 9))
         record.set('id_servico', exiId)
         $app.saveNoValidate(record)
         created++
         monthStats[mes].criados++
-        existingByIdServico[exiId] = record
+        existingMap[exiId] = record
       }
     } catch (recordErr) {
       skippedCount++
+      $app
+        .logger()
+        .error('sync_google_sheets: erro ao processar linha ' + i + ': ' + String(recordErr))
     }
   }
 
-  for (var mes in monthStats) {
-    var s = monthStats[mes]
+  for (var mesKey in monthStats) {
+    var s = monthStats[mesKey]
     $app
       .logger()
       .info(
-        'sync_google_sheets: resumo mensal',
-        'mes',
-        mes,
-        'linhas_lidas',
-        s.lidas,
-        'criados',
-        s.criados,
-        'atualizados',
-        s.atualizados,
-        'ignoradas',
-        s.ignoradas,
-        'soma_valores',
-        s.somaValores,
+        'sync_google_sheets: resumo mensal - mes: ' +
+          mesKey +
+          ' | linhas lidas: ' +
+          s.lidas +
+          ' | criados: ' +
+          s.criados +
+          ' | atualizados: ' +
+          s.atualizados +
+          ' | ignorados (sem ID_SERVICO): ' +
+          s.ignoradas +
+          ' | soma valores: R$ ' +
+          s.somaValores.toFixed(2).replace('.', ','),
       )
   }
 
+  var totalRead = created + updated + skippedCount
   var summary =
     'Linhas lidas: ' +
-    (totalRecords + skippedNoId.length) +
+    totalRead +
     ' | Criados: ' +
     created +
     ' | Atualizados: ' +
     updated +
     ' | Ignorados: ' +
-    skippedCount +
-    (skippedNoId.length > 0 ? ' | Sem ID_SERVICO: ' + skippedNoId.length : '')
-
-  logSync('success', totalRecords + skippedNoId.length, created + updated, summary)
+    skippedCount
+  logSync('success', totalRead, created + updated, summary)
   $app
     .logger()
     .info(
-      'sync_google_sheets: sincronizacao concluida',
-      'created',
-      created,
-      'updated',
-      updated,
-      'skipped',
-      skippedCount,
-      'total',
-      totalRecords,
+      'sync_google_sheets: sincronizacao concluida - criados: ' +
+        created +
+        ', atualizados: ' +
+        updated +
+        ', ignorados: ' +
+        skippedCount,
     )
 })
