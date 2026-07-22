@@ -22,6 +22,16 @@ export const getServicos = async (): Promise<ServicoRecord[]> => {
   })
 }
 
+export const getServicosByDateRange = async (
+  startDate: string,
+  endDate: string,
+): Promise<ServicoRecord[]> => {
+  return await pb.collection('servicos').getFullList<ServicoRecord>({
+    filter: `data_servico >= "${startDate}" && data_servico <= "${endDate}"`,
+    sort: '-data_servico',
+  })
+}
+
 export const createServico = async (data: Partial<ServicoRecord>) => {
   return await pb.collection('servicos').create(data)
 }

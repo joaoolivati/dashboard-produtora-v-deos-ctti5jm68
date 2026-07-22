@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-07-21T18:36:37.869Z",
+  "generatedAt": "2026-07-22T13:09:25.714Z",
   "collections": [
     {
       "name": "users",
@@ -193,7 +193,8 @@
         "CREATE UNIQUE INDEX idx_servicos_identificacao_unique ON servicos (identificacao) WHERE identificacao != ''",
         "CREATE INDEX idx_servicos_created ON servicos (created)",
         "CREATE INDEX idx_servicos_updated ON servicos (updated)",
-        "CREATE INDEX idx_servicos_mes_faturamento ON servicos (mes_faturamento)"
+        "CREATE INDEX idx_servicos_mes_faturamento ON servicos (mes_faturamento)",
+        "CREATE INDEX `idx_servicos_data_servico` ON `servicos` (data_servico)"
       ]
     }
   ]
