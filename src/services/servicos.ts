@@ -2,6 +2,7 @@ import pb from '@/lib/pocketbase/client'
 
 export interface ServicoRecord {
   id: string
+  id_servico: string
   identificacao: string
   data_servico: string
   especialista: string
