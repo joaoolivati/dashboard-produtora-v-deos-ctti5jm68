@@ -5,8 +5,10 @@ import { TooltipProvider } from '@/components/ui/tooltip'
 import Index from './pages/Index'
 import NotFound from './pages/NotFound'
 import Login from './pages/Login'
+import Custos from './pages/Custos'
 import Layout from './components/Layout'
 import { ProtectedRoute } from './components/ProtectedRoute'
+import { AdminRoute } from './components/AdminRoute'
 import { ThemeProvider } from './components/theme-provider'
 import { DashboardProvider } from './contexts/dashboard-context'
 import { AuthProvider } from '@/hooks/use-auth'
@@ -34,7 +36,15 @@ const App = () => (
                   }
                 >
                   <Route path="/" element={<Index />} />
-                </Route>
+                  <Route
+                    path="/custos"
+                    element={
+                      <AdminRoute>
+                        <Custos />
+                      </AdminRoute>
+                    }
+                  />
+                </Route>{' '}
               </Route>
               <Route path="*" element={<NotFound />} />
             </Routes>

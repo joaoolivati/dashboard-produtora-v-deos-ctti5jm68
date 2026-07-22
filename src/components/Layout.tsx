@@ -1,4 +1,4 @@
-import { Outlet } from 'react-router-dom'
+import { Outlet, Link } from 'react-router-dom'
 import { ThemeToggle } from './ThemeToggle'
 import { PrivacyToggle } from './PrivacyToggle'
 import { useDashboardContext } from '@/contexts/dashboard-context'
@@ -11,7 +11,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Button } from '@/components/ui/button'
-import { RefreshCcw, Clapperboard, Video, LogOut } from 'lucide-react'
+import { RefreshCcw, Clapperboard, Video, LogOut, Wallet } from 'lucide-react'
 import { format, isToday } from 'date-fns'
 
 export default function Layout() {
@@ -37,6 +37,14 @@ export default function Layout() {
             <h1 className="font-sans text-lg font-bold tracking-tight text-foreground hidden sm:block">
               Production Analytics
             </h1>
+            {user?.role === 'admin' && (
+              <Link to="/custos" className="hidden sm:block">
+                <Button variant="ghost" size="sm" className="rounded-full font-medium">
+                  <Wallet className="h-4 w-4 mr-1.5" strokeWidth={1.5} />
+                  Custos
+                </Button>
+              </Link>
+            )}
           </div>
 
           <div className="flex items-center gap-2 sm:gap-3">
