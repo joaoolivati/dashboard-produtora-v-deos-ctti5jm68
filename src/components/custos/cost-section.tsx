@@ -169,7 +169,11 @@ export function CostSection({ category, title, allowRecurring, caption }: CostSe
                 variant="ghost"
                 className="opacity-0 group-hover:opacity-100 h-7 w-7 transition-opacity"
                 onClick={() => {
-                  item.sourceId && allowRecurring ? setDelId(item.id) : deleteCost(item.id, false)
+                  if (item.sourceId && allowRecurring) {
+                    setDelId(item.id)
+                  } else {
+                    deleteCost(item.id, false)
+                  }
                 }}
               >
                 <Trash2 className="h-3 w-3" />
