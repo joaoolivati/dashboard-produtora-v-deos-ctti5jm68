@@ -1,28 +1,46 @@
+import { z } from 'zod'
 import pb from '@/lib/pocketbase/client'
 
-export interface SyncResult {
-  message: string
-  rowsRead: number
-  rowsSaved: number
-  status: string
-  error?: string
-  created?: number
-  updated?: number
-  skipped?: number
-}
+const syncResultSchema = z.object({
+  message: z.string(),
+  rowsRead: z.number(),
+  rowsSaved: z.number(),
+  status: z.string(),
+  error: z.string().optional(),
+  created: z.number().optional(),
+  updated: z.number().optional(),
+  skipped: z.number().optional(),
+  skippedNoId: z.number().optional(),
+})
+
+export type SyncResult = z.infer<typeof syncResultSchema>
 
 export const triggerManualSync = async (): Promise<SyncResult> => {
   try {
     const result = await pb.send('/backend/v1/sync-pull-sheets', {
       method: 'POST',
     })
-    return result as SyncResult
-  } catch (err: any) {
+    const parsed = syncResultSchema.safeParse(result)
+    if (parsed.success) {
+      return parsed.data
+    }
+    return {
+      message: 'Resposta inesperada do servidor',
+      rowsRead: 0,
+      rowsSaved: 0,
+      status: 'error',
+    }
+  } catch (err: unknown) {
+    const e = err as {
+      message?: string
+      response?: { error?: string; message?: string }
+      isAbort?: boolean
+    }
     const isNetworkError =
-      err?.message === 'Failed to fetch' ||
-      err?.message?.includes('NetworkError') ||
-      err?.message?.includes('network') ||
-      err?.isAbort
+      e?.message === 'Failed to fetch' ||
+      e?.message?.includes('NetworkError') ||
+      e?.message?.includes('network') ||
+      e?.isAbort
 
     if (isNetworkError) {
       throw new Error(
@@ -31,9 +49,9 @@ export const triggerManualSync = async (): Promise<SyncResult> => {
     }
 
     const message =
-      err?.response?.error ||
-      err?.response?.message ||
-      err?.message ||
+      e?.response?.error ||
+      e?.response?.message ||
+      e?.message ||
       'Erro ao sincronizar com a planilha. Tente novamente.'
     throw new Error(message)
   }
