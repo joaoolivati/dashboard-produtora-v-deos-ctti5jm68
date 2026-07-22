@@ -19,6 +19,23 @@ export const getTaxSettings = async (month: string): Promise<TaxSettings | null>
   }
 }
 
+export const getInheritedTaxRate = async (
+  currentMonth: string,
+): Promise<{ rate: number; sourceMonth: string } | null> => {
+  try {
+    const records = await pb.collection('tax_settings').getFullList<TaxSettings>({
+      filter: `month < "${currentMonth}"`,
+      sort: '-month',
+    })
+    if (records.length > 0) {
+      return { rate: records[0].percentage || 0, sourceMonth: records[0].month }
+    }
+    return null
+  } catch {
+    return null
+  }
+}
+
 export const upsertTaxSettings = async (
   month: string,
   data: { percentage?: number; rbt12?: number; nominalRate?: number; deduction?: number },

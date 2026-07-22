@@ -13,7 +13,12 @@ import {
   deleteMonthlyCost,
   type MonthlyCost,
 } from '@/services/monthly-costs'
-import { getTaxSettings, upsertTaxSettings, type TaxSettings } from '@/services/tax-settings'
+import {
+  getTaxSettings,
+  upsertTaxSettings,
+  getInheritedTaxRate,
+  type TaxSettings,
+} from '@/services/tax-settings'
 import { dashboardMonthToISO } from '@/lib/month-utils'
 import { computePrediction } from '@/lib/prediction'
 import { calculateRbt12, countMonthsWithHistory } from '@/lib/rbt12'
@@ -25,6 +30,7 @@ interface CostControlState {
   recurringCosts: RecurringCost[]
   monthlyCosts: MonthlyCost[]
   taxSettings: TaxSettings | null
+  inheritedRate: { rate: number; sourceMonth: string } | null
   realizedRevenue: number
   projectedRevenue: number
   rbt12: number
@@ -40,12 +46,7 @@ interface CostControlState {
   }) => Promise<void>
   updateCost: (id: string, p: { name: string; amount: number; recurring: boolean }) => Promise<void>
   deleteCost: (id: string, removeFromFuture: boolean) => Promise<void>
-  updateTaxSettings: (p: {
-    rbt12?: number
-    nominalRate?: number
-    deduction?: number
-    percentage?: number
-  }) => Promise<void>
+  updateTaxSettings: (p: { percentage?: number }) => Promise<void>
 }
 
 const Ctx = createContext<CostControlState | undefined>(undefined)
@@ -57,6 +58,9 @@ export const CostControlProvider: React.FC<{ children: React.ReactNode }> = ({ c
   const [recurringCosts, setRecurringCosts] = useState<RecurringCost[]>([])
   const [monthlyCosts, setMonthlyCosts] = useState<MonthlyCost[]>([])
   const [taxSettings, setTaxSettings] = useState<TaxSettings | null>(null)
+  const [inheritedRate, setInheritedRate] = useState<{ rate: number; sourceMonth: string } | null>(
+    null,
+  )
   const [loading, setLoading] = useState(true)
 
   const realizedRevenue = useMemo(
@@ -72,14 +76,11 @@ export const CostControlProvider: React.FC<{ children: React.ReactNode }> = ({ c
   const monthsWithHistory = useMemo(() => countMonthsWithHistory(data, isoMonth), [data, isoMonth])
 
   const effectiveRate = useMemo(() => {
-    const rbt = taxSettings?.rbt12 || rbt12
-    const rate = taxSettings?.nominalRate || 0
-    const ded = taxSettings?.deduction || 0
-    if (rbt > 0 && rate > 0) {
-      return (((rbt * rate) / 100 - ded) / rbt) * 100
+    if (taxSettings) {
+      return taxSettings.percentage || 0
     }
-    return taxSettings?.percentage || 0
-  }, [taxSettings, rbt12])
+    return inheritedRate?.rate ?? 0
+  }, [taxSettings, inheritedRate])
 
   const taxAmount = useMemo(
     () => realizedRevenue * (effectiveRate / 100),
@@ -118,6 +119,12 @@ export const CostControlProvider: React.FC<{ children: React.ReactNode }> = ({ c
       }
       setRecurringCosts(recurring)
       setTaxSettings(tax)
+      if (!tax) {
+        const inherited = await getInheritedTaxRate(isoMonth)
+        setInheritedRate(inherited)
+      } else {
+        setInheritedRate(null)
+      }
     } catch {
       toast.error('Erro ao carregar dados de custos.')
     } finally {
@@ -213,15 +220,11 @@ export const CostControlProvider: React.FC<{ children: React.ReactNode }> = ({ c
   )
 
   const updateTaxSettings = useCallback(
-    async (p: {
-      rbt12?: number
-      nominalRate?: number
-      deduction?: number
-      percentage?: number
-    }) => {
+    async (p: { percentage?: number }) => {
       try {
         const updated = await upsertTaxSettings(isoMonth, p)
         setTaxSettings(updated)
+        setInheritedRate(null)
         toast.success('Configurações de imposto atualizadas.')
       } catch {
         toast.error('Erro ao atualizar configurações de imposto.')
@@ -238,6 +241,7 @@ export const CostControlProvider: React.FC<{ children: React.ReactNode }> = ({ c
         recurringCosts,
         monthlyCosts,
         taxSettings,
+        inheritedRate,
         realizedRevenue,
         projectedRevenue,
         rbt12,

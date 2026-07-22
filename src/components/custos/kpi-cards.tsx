@@ -4,6 +4,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { useCostControl } from '@/contexts/cost-control-context'
 import { usePrivacy } from '@/contexts/privacy-context'
 import { Wallet, Percent, Users, TrendingUp } from 'lucide-react'
+import { formatRate } from '@/lib/utils'
 
 export function KpiCards() {
   const { monthlyCosts, realizedRevenue, loading, effectiveRate, taxAmount } = useCostControl()
@@ -65,11 +66,7 @@ export function KpiCards() {
             {formatCurrency(m.taxAmount)}
           </p>
           <p className="text-xs text-muted-foreground mt-0.5">
-            {effectiveRate.toLocaleString('pt-BR', {
-              minimumFractionDigits: 2,
-              maximumFractionDigits: 2,
-            })}
-            % efetiva
+            {formatRate(effectiveRate)}% efetiva
           </p>
         </CardContent>
       </Card>
