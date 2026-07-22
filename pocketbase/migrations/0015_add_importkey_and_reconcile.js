@@ -80,7 +80,7 @@ migrate(
       )
 
     try {
-      col.addIndex('idx_servicos_importkey_unique', true, 'importKey', "WHERE importKey != ''")
+      col.addIndex('idx_servicos_importkey_unique', true, 'importKey', "importKey != ''")
     } catch (_) {}
     app.save(col)
   },
