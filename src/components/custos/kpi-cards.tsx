@@ -6,18 +6,26 @@ import { usePrivacy } from '@/contexts/privacy-context'
 import { Wallet, Percent, Users, TrendingUp } from 'lucide-react'
 
 export function KpiCards() {
-  const { monthlyCosts, taxSettings, realizedRevenue, loading } = useCostControl()
+  const { monthlyCosts, realizedRevenue, loading, effectiveRate, taxAmount } = useCostControl()
   const { formatCurrency } = usePrivacy()
 
   const m = useMemo(() => {
     const totalCosts = monthlyCosts.reduce((s, c) => s + c.amount, 0)
-    const taxAmount = realizedRevenue * ((taxSettings?.percentage || 0) / 100)
     const payroll = monthlyCosts
       .filter((c) => c.category === 'salario')
       .reduce((s, c) => s + c.amount, 0)
+    const payrollCount = monthlyCosts.filter((c) => c.category === 'salario').length
     const result = realizedRevenue - (totalCosts + taxAmount)
-    return { totalWithTax: totalCosts + taxAmount, taxAmount, payroll, result }
-  }, [monthlyCosts, taxSettings, realizedRevenue])
+    const margin = realizedRevenue > 0 ? (result / realizedRevenue) * 100 : null
+    return {
+      totalWithTax: totalCosts + taxAmount,
+      taxAmount,
+      payroll,
+      payrollCount,
+      result,
+      margin,
+    }
+  }, [monthlyCosts, taxAmount, realizedRevenue])
 
   if (loading) {
     return (
@@ -29,7 +37,7 @@ export function KpiCards() {
     )
   }
 
-  const selectText = { userSelect: 'text' as const, WebkitUserSelect: 'text' as const }
+  const st = { userSelect: 'text' as const, WebkitUserSelect: 'text' as const }
 
   return (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 animate-fade-in-up">
@@ -40,7 +48,7 @@ export function KpiCards() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-2xl font-bold font-mono select-text" style={selectText}>
+          <p className="text-2xl font-bold font-mono select-text" style={st}>
             {formatCurrency(m.totalWithTax)}
           </p>
         </CardContent>
@@ -53,11 +61,15 @@ export function KpiCards() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-2xl font-bold font-mono select-text" style={selectText}>
+          <p className="text-2xl font-bold font-mono select-text" style={st}>
             {formatCurrency(m.taxAmount)}
           </p>
           <p className="text-xs text-muted-foreground mt-0.5">
-            {(taxSettings?.percentage || 0).toLocaleString('pt-BR')}% do Simples
+            {effectiveRate.toLocaleString('pt-BR', {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            })}
+            % efetiva
           </p>
         </CardContent>
       </Card>
@@ -69,8 +81,11 @@ export function KpiCards() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-2xl font-bold font-mono select-text" style={selectText}>
+          <p className="text-2xl font-bold font-mono select-text" style={st}>
             {formatCurrency(m.payroll)}
+          </p>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            {m.payrollCount} {m.payrollCount === 1 ? 'pessoa' : 'pessoas'}
           </p>
         </CardContent>
       </Card>
@@ -84,9 +99,16 @@ export function KpiCards() {
         <CardContent>
           <p
             className={`text-2xl font-bold font-mono select-text ${m.result >= 0 ? 'text-green-600 dark:text-green-400' : 'text-destructive'}`}
-            style={selectText}
+            style={st}
           >
             {formatCurrency(m.result)}
+          </p>
+          <p
+            className={`text-xs mt-0.5 ${m.margin !== null && m.margin < 0 ? 'text-destructive' : 'text-muted-foreground'}`}
+          >
+            {m.margin !== null
+              ? `${m.margin.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}% de margem`
+              : '—'}
           </p>
         </CardContent>
       </Card>

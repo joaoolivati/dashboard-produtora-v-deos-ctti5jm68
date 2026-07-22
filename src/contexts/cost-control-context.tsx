@@ -16,6 +16,7 @@ import {
 import { getTaxSettings, upsertTaxSettings, type TaxSettings } from '@/services/tax-settings'
 import { dashboardMonthToISO } from '@/lib/month-utils'
 import { computePrediction } from '@/lib/prediction'
+import { calculateRbt12, countMonthsWithHistory } from '@/lib/rbt12'
 import { toast } from 'sonner'
 import { useRealtime } from '@/hooks/use-realtime'
 
@@ -26,6 +27,10 @@ interface CostControlState {
   taxSettings: TaxSettings | null
   realizedRevenue: number
   projectedRevenue: number
+  rbt12: number
+  monthsWithHistory: number
+  effectiveRate: number
+  taxAmount: number
   loading: boolean
   addCost: (p: {
     name: string
@@ -35,7 +40,12 @@ interface CostControlState {
   }) => Promise<void>
   updateCost: (id: string, p: { name: string; amount: number; recurring: boolean }) => Promise<void>
   deleteCost: (id: string, removeFromFuture: boolean) => Promise<void>
-  updateTaxPercentage: (pct: number) => Promise<void>
+  updateTaxSettings: (p: {
+    rbt12?: number
+    nominalRate?: number
+    deduction?: number
+    percentage?: number
+  }) => Promise<void>
 }
 
 const Ctx = createContext<CostControlState | undefined>(undefined)
@@ -57,6 +67,24 @@ export const CostControlProvider: React.FC<{ children: React.ReactNode }> = ({ c
     if (!filteredData.length) return 0
     return computePrediction(filteredData, data, selectedMonth).projectedTotal
   }, [filteredData, data, selectedMonth])
+
+  const rbt12 = useMemo(() => calculateRbt12(data, isoMonth), [data, isoMonth])
+  const monthsWithHistory = useMemo(() => countMonthsWithHistory(data, isoMonth), [data, isoMonth])
+
+  const effectiveRate = useMemo(() => {
+    const rbt = taxSettings?.rbt12 || rbt12
+    const rate = taxSettings?.nominalRate || 0
+    const ded = taxSettings?.deduction || 0
+    if (rbt > 0 && rate > 0) {
+      return (((rbt * rate) / 100 - ded) / rbt) * 100
+    }
+    return taxSettings?.percentage || 0
+  }, [taxSettings, rbt12])
+
+  const taxAmount = useMemo(
+    () => realizedRevenue * (effectiveRate / 100),
+    [realizedRevenue, effectiveRate],
+  )
 
   const fetchData = useCallback(async () => {
     if (!isoMonth) {
@@ -184,14 +212,19 @@ export const CostControlProvider: React.FC<{ children: React.ReactNode }> = ({ c
     [monthlyCosts, fetchData],
   )
 
-  const updateTaxPercentage = useCallback(
-    async (pct: number) => {
+  const updateTaxSettings = useCallback(
+    async (p: {
+      rbt12?: number
+      nominalRate?: number
+      deduction?: number
+      percentage?: number
+    }) => {
       try {
-        const updated = await upsertTaxSettings(isoMonth, pct)
+        const updated = await upsertTaxSettings(isoMonth, p)
         setTaxSettings(updated)
-        toast.success('Percentual de imposto atualizado.')
+        toast.success('Configurações de imposto atualizadas.')
       } catch {
-        toast.error('Erro ao atualizar percentual.')
+        toast.error('Erro ao atualizar configurações de imposto.')
       }
     },
     [isoMonth],
@@ -207,11 +240,15 @@ export const CostControlProvider: React.FC<{ children: React.ReactNode }> = ({ c
         taxSettings,
         realizedRevenue,
         projectedRevenue,
+        rbt12,
+        monthsWithHistory,
+        effectiveRate,
+        taxAmount,
         loading,
         addCost,
         updateCost,
         deleteCost,
-        updateTaxPercentage,
+        updateTaxSettings,
       },
     },
     children,

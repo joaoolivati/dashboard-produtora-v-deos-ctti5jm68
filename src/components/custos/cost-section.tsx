@@ -4,6 +4,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { Skeleton } from '@/components/ui/skeleton'
+import { CurrencyInput } from '@/components/ui/currency-input'
+import { DeleteDialog } from '@/components/custos/delete-dialog'
 import { useCostControl } from '@/contexts/cost-control-context'
 import { usePrivacy } from '@/contexts/privacy-context'
 import { costItemSchema } from '@/lib/cost-schemas'
@@ -22,39 +24,50 @@ export function CostSection({ category, title, allowRecurring, caption }: CostSe
   const { formatCurrency } = usePrivacy()
   const items = monthlyCosts.filter((m) => m.category === category)
   const subtotal = items.reduce((s, m) => s + m.amount, 0)
+  const peopleCount = category === 'salario' ? items.length : undefined
 
   const [showAdd, setShowAdd] = useState(false)
   const [addName, setAddName] = useState('')
-  const [addAmount, setAddAmount] = useState('')
+  const [addAmount, setAddAmount] = useState(0)
   const [addRecurring, setAddRecurring] = useState(true)
   const [editId, setEditId] = useState<string | null>(null)
   const [editName, setEditName] = useState('')
-  const [editAmount, setEditAmount] = useState('')
+  const [editAmount, setEditAmount] = useState(0)
   const [editRecurring, setEditRecurring] = useState(false)
-  const [delId, setDelId] = useState<string | null>(null)
+  const [delTarget, setDelTarget] = useState<{
+    id: string
+    name: string
+    isRecurring: boolean
+  } | null>(null)
 
   const handleAdd = async () => {
-    const parsed = costItemSchema.safeParse({ name: addName, amount: parseFloat(addAmount) || 0 })
+    const parsed = costItemSchema.safeParse({ name: addName, amount: addAmount })
     if (!parsed.success) {
       toast.error(parsed.error.issues[0].message)
       return
     }
     await addCost({ ...parsed.data, category, recurring: allowRecurring ? addRecurring : false })
     setAddName('')
-    setAddAmount('')
+    setAddAmount(0)
     setShowAdd(false)
     setAddRecurring(true)
   }
 
   const handleEdit = async () => {
     if (!editId) return
-    const parsed = costItemSchema.safeParse({ name: editName, amount: parseFloat(editAmount) || 0 })
+    const parsed = costItemSchema.safeParse({ name: editName, amount: editAmount })
     if (!parsed.success) {
       toast.error(parsed.error.issues[0].message)
       return
     }
     await updateCost(editId, { ...parsed.data, recurring: allowRecurring ? editRecurring : false })
     setEditId(null)
+  }
+
+  const handleDelete = async (removeFromFuture: boolean) => {
+    if (!delTarget) return
+    await deleteCost(delTarget.id, removeFromFuture)
+    setDelTarget(null)
   }
 
   if (loading) {
@@ -70,164 +83,143 @@ export function CostSection({ category, title, allowRecurring, caption }: CostSe
   }
 
   return (
-    <Card className="glass animate-fade-in-up">
-      <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-base font-semibold">{title}</CardTitle>
-          <span className="text-sm font-mono text-muted-foreground">
-            {formatCurrency(subtotal)}
-          </span>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-1">
-        {items.map((item) =>
-          editId === item.id ? (
-            <div key={item.id} className="flex items-center gap-2 py-1">
+    <>
+      <Card className="glass animate-fade-in-up">
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base font-semibold">
+              {title}
+              {peopleCount !== undefined && (
+                <span className="text-sm font-normal text-muted-foreground ml-2">
+                  · {peopleCount} {peopleCount === 1 ? 'pessoa' : 'pessoas'}
+                </span>
+              )}
+            </CardTitle>
+            <span className="text-sm font-mono text-muted-foreground">
+              {formatCurrency(subtotal)}
+            </span>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-1">
+          {items.map((item) =>
+            editId === item.id ? (
+              <div key={item.id} className="flex items-center gap-2 py-1">
+                <Input
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  className="h-8"
+                  placeholder="Nome"
+                />
+                <CurrencyInput value={editAmount} onChange={setEditAmount} className="h-8 w-32" />
+                {allowRecurring && (
+                  <div className="flex items-center gap-1 px-1">
+                    <Switch checked={editRecurring} onCheckedChange={setEditRecurring} />
+                    <Repeat className="h-3 w-3 text-muted-foreground" />
+                  </div>
+                )}
+                <Button size="icon" variant="ghost" className="h-7 w-7" onClick={handleEdit}>
+                  <Check className="h-3.5 w-3.5" />
+                </Button>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="h-7 w-7"
+                  onClick={() => setEditId(null)}
+                >
+                  <X className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            ) : (
+              <div
+                key={item.id}
+                className="flex items-center gap-2 group py-1 px-1 rounded hover:bg-muted/50 transition-colors"
+              >
+                <span className="flex-1 text-sm">{item.name}</span>
+                {item.sourceId && allowRecurring && (
+                  <Repeat className="h-3 w-3 text-muted-foreground shrink-0" />
+                )}
+                <span className="text-sm font-mono">{formatCurrency(item.amount)}</span>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="opacity-0 group-hover:opacity-100 h-7 w-7 transition-opacity"
+                  onClick={() => {
+                    setEditId(item.id)
+                    setEditName(item.name)
+                    setEditAmount(item.amount)
+                    setEditRecurring(!!item.sourceId)
+                  }}
+                >
+                  <Pencil className="h-3 w-3" />
+                </Button>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="opacity-0 group-hover:opacity-100 h-7 w-7 transition-opacity"
+                  onClick={() =>
+                    setDelTarget({
+                      id: item.id,
+                      name: item.name,
+                      isRecurring: !!item.sourceId && allowRecurring,
+                    })
+                  }
+                >
+                  <Trash2 className="h-3 w-3" />
+                </Button>
+              </div>
+            ),
+          )}
+
+          {showAdd ? (
+            <div className="flex items-center gap-2 pt-2 mt-1 border-t">
               <Input
-                value={editName}
-                onChange={(e) => setEditName(e.target.value)}
+                placeholder="Nome"
+                value={addName}
+                onChange={(e) => setAddName(e.target.value)}
                 className="h-8"
               />
-              <Input
-                value={editAmount}
-                onChange={(e) => setEditAmount(e.target.value)}
-                type="number"
-                className="h-8 w-28"
-              />
+              <CurrencyInput value={addAmount} onChange={setAddAmount} className="h-8 w-32" />
               {allowRecurring && (
                 <div className="flex items-center gap-1 px-1">
-                  <Switch checked={editRecurring} onCheckedChange={setEditRecurring} />
-                  <Repeat className="h-3 w-3 text-muted-foreground" />
+                  <Switch checked={addRecurring} onCheckedChange={setAddRecurring} />
+                  <span className="text-xs text-muted-foreground whitespace-nowrap">
+                    Recorrente
+                  </span>
                 </div>
               )}
-              <Button size="icon" variant="ghost" className="h-7 w-7" onClick={handleEdit}>
+              <Button size="icon" className="h-7 w-7" onClick={handleAdd}>
                 <Check className="h-3.5 w-3.5" />
               </Button>
               <Button
                 size="icon"
                 variant="ghost"
                 className="h-7 w-7"
-                onClick={() => setEditId(null)}
+                onClick={() => setShowAdd(false)}
               >
                 <X className="h-3.5 w-3.5" />
               </Button>
             </div>
-          ) : delId === item.id ? (
-            <div key={item.id} className="flex items-center gap-2 p-2 rounded-lg bg-destructive/5">
-              <span className="text-xs text-muted-foreground flex-1">
-                Remover dos próximos meses também?
-              </span>
-              <Button
-                size="sm"
-                variant="destructive"
-                onClick={() => {
-                  deleteCost(item.id, true)
-                  setDelId(null)
-                }}
-              >
-                Sim
-              </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => {
-                  deleteCost(item.id, false)
-                  setDelId(null)
-                }}
-              >
-                Só este mês
-              </Button>
-              <Button size="sm" variant="ghost" onClick={() => setDelId(null)}>
-                Cancelar
-              </Button>
-            </div>
           ) : (
-            <div
-              key={item.id}
-              className="flex items-center gap-2 group py-1 px-1 rounded hover:bg-muted/50 transition-colors"
-            >
-              <span className="flex-1 text-sm">{item.name}</span>
-              {item.sourceId && allowRecurring && (
-                <Repeat className="h-3 w-3 text-muted-foreground shrink-0" />
-              )}
-              <span className="text-sm font-mono">{formatCurrency(item.amount)}</span>
-              <Button
-                size="icon"
-                variant="ghost"
-                className="opacity-0 group-hover:opacity-100 h-7 w-7 transition-opacity"
-                onClick={() => {
-                  setEditId(item.id)
-                  setEditName(item.name)
-                  setEditAmount(String(item.amount))
-                  setEditRecurring(!!item.sourceId)
-                }}
-              >
-                <Pencil className="h-3 w-3" />
-              </Button>
-              <Button
-                size="icon"
-                variant="ghost"
-                className="opacity-0 group-hover:opacity-100 h-7 w-7 transition-opacity"
-                onClick={() => {
-                  if (item.sourceId && allowRecurring) {
-                    setDelId(item.id)
-                  } else {
-                    deleteCost(item.id, false)
-                  }
-                }}
-              >
-                <Trash2 className="h-3 w-3" />
-              </Button>
-            </div>
-          ),
-        )}
-
-        {showAdd ? (
-          <div className="flex items-center gap-2 pt-2 mt-1 border-t">
-            <Input
-              placeholder="Nome"
-              value={addName}
-              onChange={(e) => setAddName(e.target.value)}
-              className="h-8"
-            />
-            <Input
-              placeholder="Valor"
-              value={addAmount}
-              onChange={(e) => setAddAmount(e.target.value)}
-              type="number"
-              className="h-8 w-28"
-            />
-            {allowRecurring && (
-              <div className="flex items-center gap-1 px-1">
-                <Switch checked={addRecurring} onCheckedChange={setAddRecurring} />
-                <span className="text-xs text-muted-foreground whitespace-nowrap">Recorrente</span>
-              </div>
-            )}
-            <Button size="icon" className="h-7 w-7" onClick={handleAdd}>
-              <Check className="h-3.5 w-3.5" />
-            </Button>
             <Button
-              size="icon"
               variant="ghost"
-              className="h-7 w-7"
-              onClick={() => setShowAdd(false)}
+              size="sm"
+              className="w-full justify-start text-muted-foreground mt-1"
+              onClick={() => setShowAdd(true)}
             >
-              <X className="h-3.5 w-3.5" />
+              <Plus className="h-4 w-4 mr-1" /> Adicionar
             </Button>
-          </div>
-        ) : (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="w-full justify-start text-muted-foreground mt-1"
-            onClick={() => setShowAdd(true)}
-          >
-            <Plus className="h-4 w-4 mr-1" /> Adicionar
-          </Button>
-        )}
+          )}
+          {caption && <p className="text-xs text-muted-foreground pt-2">{caption}</p>}
+        </CardContent>
+      </Card>
 
-        {caption && <p className="text-xs text-muted-foreground pt-2">{caption}</p>}
-      </CardContent>
-    </Card>
+      <DeleteDialog
+        open={!!delTarget}
+        itemName={delTarget?.name || ''}
+        isRecurring={delTarget?.isRecurring || false}
+        onConfirm={handleDelete}
+        onCancel={() => setDelTarget(null)}
+      />
+    </>
   )
 }
