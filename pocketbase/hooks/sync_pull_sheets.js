@@ -46,7 +46,7 @@ routerAdd(
 
     var parseDate = (raw) => {
       var d = (raw || '').toString().trim()
-      if (!d) return '2000-01-01 12:00:00'
+      if (!d) return null
       var parts = d.split(/[\/\-]/)
       if (parts.length === 3) {
         var day = parts[0].padStart(2, '0')
@@ -55,7 +55,7 @@ routerAdd(
         if (year.length === 2) year = '20' + year
         return year + '-' + month + '-' + day + ' 12:00:00'
       }
-      return '2000-01-01 12:00:00'
+      return null
     }
 
     var parseValores = (raw) => {
@@ -128,6 +128,7 @@ routerAdd(
         created: 0,
         updated: 0,
         skipped: 0,
+        dbCount: 0,
         status: 'success',
       })
     }
@@ -173,45 +174,35 @@ routerAdd(
     var updated = 0
     var skippedCount = 0
     var monthStats = {}
-    var dedupedMap = {}
 
     for (var i = 1; i < values.length; i++) {
       var row = values[i]
-      var isEmpty = true
-      for (var c = 0; c < Math.min(row.length, 10); c++) {
-        if (cellStr(row, c)) {
-          isEmpty = false
-          break
-        }
-      }
-      if (isEmpty) continue
-
       var exiId = cellStr(row, idServicoIdx)
-      var identificacao = cellStr(row, 3)
       var mes = cellStr(row, 9) || 'sem_mes'
 
       if (!monthStats[mes]) {
-        monthStats[mes] = { lidas: 0, criados: 0, atualizados: 0, ignoradas: 0, somaValores: 0 }
+        monthStats[mes] = {
+          lidas: 0,
+          criados: 0,
+          atualizados: 0,
+          puladas: 0,
+          motivos: [],
+          somaValores: 0,
+        }
       }
       monthStats[mes].lidas++
 
       if (!exiId) {
         skippedCount++
-        monthStats[mes].ignoradas++
-        $app
-          .logger()
-          .info(
-            'sync_pull_sheets: pulado: sem ID_SERVICO - ' +
-              (identificacao || '(sem identificacao)'),
-          )
+        monthStats[mes].puladas++
+        var motivoSemId = 'sem ID_SERVICO (linha ' + (i + 1) + ')'
+        monthStats[mes].motivos.push(motivoSemId)
+        $app.logger().info('sync_pull_sheets: pulado: sem ID_SERVICO - linha ' + (i + 1))
         continue
       }
 
       var valoresRaw = cellStr(row, 6)
       monthStats[mes].somaValores += parseValores(valoresRaw)
-
-      if (dedupedMap[exiId]) continue
-      dedupedMap[exiId] = true
 
       try {
         var existing = existingMap[exiId]
@@ -219,7 +210,7 @@ routerAdd(
           existing.set('data_servico', parseDate(cellStr(row, 0)))
           existing.set('especialista', cellStr(row, 1))
           existing.set('tipo_video', cellStr(row, 2))
-          existing.set('identificacao', identificacao)
+          existing.set('identificacao', cellStr(row, 3))
           existing.set('video_bruto', cellStr(row, 4))
           existing.set('video_editado', cellStr(row, 5))
           existing.set('valores', parseValores(valoresRaw))
@@ -235,7 +226,7 @@ routerAdd(
           record.set('data_servico', parseDate(cellStr(row, 0)))
           record.set('especialista', cellStr(row, 1))
           record.set('tipo_video', cellStr(row, 2))
-          record.set('identificacao', identificacao)
+          record.set('identificacao', cellStr(row, 3))
           record.set('video_bruto', cellStr(row, 4))
           record.set('video_editado', cellStr(row, 5))
           record.set('valores', parseValores(valoresRaw))
@@ -250,9 +241,19 @@ routerAdd(
         }
       } catch (recordErr) {
         skippedCount++
+        monthStats[mes].puladas++
+        var motivoErro = 'ID ' + exiId + ' (linha ' + (i + 1) + '): ' + String(recordErr)
+        monthStats[mes].motivos.push(motivoErro)
         $app
           .logger()
-          .error('sync_pull_sheets: erro ao processar linha ' + i + ': ' + String(recordErr))
+          .error(
+            'sync_pull_sheets: erro ao processar ID_SERVICO ' +
+              exiId +
+              ' (linha ' +
+              (i + 1) +
+              '): ' +
+              String(recordErr),
+          )
       }
     }
 
@@ -261,22 +262,39 @@ routerAdd(
       $app
         .logger()
         .info(
-          'sync_pull_sheets: resumo mensal - mes: ' +
+          'sync_pull_sheets: Mês ' +
             mesKey +
-            ' | linhas lidas: ' +
+            ': lidas ' +
             s.lidas +
-            ' | criados: ' +
+            ', criadas ' +
             s.criados +
-            ' | atualizados: ' +
+            ', atualizadas ' +
             s.atualizados +
-            ' | ignorados (sem ID_SERVICO): ' +
-            s.ignoradas +
-            ' | soma valores: R$ ' +
+            ', puladas ' +
+            s.puladas +
+            ' (motivos: ' +
+            (s.motivos.length > 0 ? s.motivos.join('; ') : 'nenhum') +
+            '), soma valores R$ ' +
             s.somaValores.toFixed(2).replace('.', ','),
         )
     }
 
     var totalRead = created + updated + skippedCount
+    var dbCount = 0
+    try {
+      dbCount = $app.countRecords('servicos')
+    } catch (countErr) {
+      $app.logger().error('sync_pull_sheets: erro ao contar registros: ' + String(countErr))
+    }
+    $app
+      .logger()
+      .info(
+        'sync_pull_sheets: Total geral de linhas lidas: ' +
+          totalRead +
+          ' | Total de registros no banco: ' +
+          dbCount,
+      )
+
     var summary =
       'Linhas lidas: ' +
       totalRead +
@@ -285,7 +303,9 @@ routerAdd(
       ' | Atualizados: ' +
       updated +
       ' | Ignorados: ' +
-      skippedCount
+      skippedCount +
+      ' | Registros no banco: ' +
+      dbCount
     logSync('success', totalRead, created + updated, summary)
     $app
       .logger()
@@ -305,6 +325,7 @@ routerAdd(
       created: created,
       updated: updated,
       skipped: skippedCount,
+      dbCount: dbCount,
       status: 'success',
     })
   },
