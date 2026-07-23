@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { Skeleton } from '@/components/ui/skeleton'
-import { CurrencyInput } from '@/components/ui/currency-input'
+import { formatBRLInput, parseBRLInput, handleBRLInputChange } from '@/lib/brl-input'
 import { DeleteDialog } from '@/components/custos/delete-dialog'
 import { useCostControl } from '@/contexts/cost-control-context'
 import { usePrivacy } from '@/contexts/privacy-context'
@@ -28,11 +28,11 @@ export function CostSection({ category, title, allowRecurring, caption }: CostSe
 
   const [showAdd, setShowAdd] = useState(false)
   const [addName, setAddName] = useState('')
-  const [addAmount, setAddAmount] = useState(0)
+  const [addAmountStr, setAddAmountStr] = useState(formatBRLInput(0))
   const [addRecurring, setAddRecurring] = useState(true)
   const [editId, setEditId] = useState<string | null>(null)
   const [editName, setEditName] = useState('')
-  const [editAmount, setEditAmount] = useState(0)
+  const [editAmountStr, setEditAmountStr] = useState('')
   const [editRecurring, setEditRecurring] = useState(false)
   const [delTarget, setDelTarget] = useState<{
     id: string
@@ -41,6 +41,7 @@ export function CostSection({ category, title, allowRecurring, caption }: CostSe
   } | null>(null)
 
   const handleAdd = async () => {
+    const addAmount = parseBRLInput(addAmountStr)
     const parsed = costItemSchema.safeParse({ name: addName, amount: addAmount })
     if (!parsed.success) {
       toast.error(parsed.error.issues[0].message)
@@ -48,13 +49,14 @@ export function CostSection({ category, title, allowRecurring, caption }: CostSe
     }
     await addCost({ ...parsed.data, category, recurring: allowRecurring ? addRecurring : false })
     setAddName('')
-    setAddAmount(0)
+    setAddAmountStr(formatBRLInput(0))
     setShowAdd(false)
     setAddRecurring(true)
   }
 
   const handleEdit = async () => {
     if (!editId) return
+    const editAmount = parseBRLInput(editAmountStr)
     const parsed = costItemSchema.safeParse({ name: editName, amount: editAmount })
     if (!parsed.success) {
       toast.error(parsed.error.issues[0].message)
@@ -110,7 +112,17 @@ export function CostSection({ category, title, allowRecurring, caption }: CostSe
                   className="h-8"
                   placeholder="Nome"
                 />
-                <CurrencyInput value={editAmount} onChange={setEditAmount} className="h-8 w-32" />
+                <div className="relative">
+                  <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground pointer-events-none">
+                    R$
+                  </span>
+                  <Input
+                    value={editAmountStr}
+                    onChange={(e) => setEditAmountStr(handleBRLInputChange(e.target.value))}
+                    className="h-8 w-32 pl-7 font-mono"
+                    inputMode="decimal"
+                  />
+                </div>
                 {allowRecurring && (
                   <div className="flex items-center gap-1 px-1">
                     <Switch checked={editRecurring} onCheckedChange={setEditRecurring} />
@@ -146,7 +158,7 @@ export function CostSection({ category, title, allowRecurring, caption }: CostSe
                   onClick={() => {
                     setEditId(item.id)
                     setEditName(item.name)
-                    setEditAmount(item.amount)
+                    setEditAmountStr(formatBRLInput(item.amount))
                     setEditRecurring(!!item.sourceId)
                   }}
                 >
@@ -178,7 +190,18 @@ export function CostSection({ category, title, allowRecurring, caption }: CostSe
                 onChange={(e) => setAddName(e.target.value)}
                 className="h-8"
               />
-              <CurrencyInput value={addAmount} onChange={setAddAmount} className="h-8 w-32" />
+              <div className="relative">
+                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground pointer-events-none">
+                  R$
+                </span>
+                <Input
+                  value={addAmountStr}
+                  onChange={(e) => setAddAmountStr(handleBRLInputChange(e.target.value))}
+                  className="h-8 w-32 pl-7 font-mono"
+                  inputMode="decimal"
+                  placeholder={formatBRLInput(0)}
+                />
+              </div>
               {allowRecurring && (
                 <div className="flex items-center gap-1 px-1">
                   <Switch checked={addRecurring} onCheckedChange={setAddRecurring} />
@@ -187,7 +210,7 @@ export function CostSection({ category, title, allowRecurring, caption }: CostSe
                   </span>
                 </div>
               )}
-              <Button size="icon" className="h-7 w-7" onClick={handleAdd}>
+              <Button size="icon" variant="ghost" className="h-7 w-7" onClick={handleAdd}>
                 <Check className="h-3.5 w-3.5" />
               </Button>
               <Button

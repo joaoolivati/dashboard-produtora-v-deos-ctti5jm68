@@ -4,6 +4,7 @@ import { KpiCards } from '@/components/custos/kpi-cards'
 import { CostSection } from '@/components/custos/cost-section'
 import { TaxCard } from '@/components/custos/tax-card'
 import { CompositionCard } from '@/components/custos/composition-card'
+import { SimulatorCard } from '@/components/custos/simulator-card'
 
 export default function Custos() {
   return (
@@ -32,6 +33,7 @@ export default function Custos() {
           <div className="flex flex-col gap-4">
             <TaxCard />
             <CompositionCard />
+            <SimulatorCard />
           </div>
         </div>
       </div>

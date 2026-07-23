@@ -68,7 +68,10 @@ export function SummaryCards() {
           <Video className="h-4 w-4 text-chart-2" strokeWidth={1.5} />
         </CardHeader>
         <CardContent>
-          <div className="text-3xl font-bold font-mono tracking-tight text-foreground">
+          <div
+            className="text-3xl font-bold font-mono tracking-tight text-foreground select-text"
+            style={{ userSelect: 'text', WebkitUserSelect: 'text' }}
+          >
             {formatNumber(metrics.totalVideos)}
           </div>
           <p className="text-xs text-muted-foreground mt-1">Projetos finalizados</p>
@@ -82,7 +85,10 @@ export function SummaryCards() {
           <Target className="h-4 w-4 text-chart-3" strokeWidth={1.5} />
         </CardHeader>
         <CardContent>
-          <div className="text-3xl font-bold font-mono tracking-tight text-foreground">
+          <div
+            className="text-3xl font-bold font-mono tracking-tight text-foreground select-text"
+            style={{ userSelect: 'text', WebkitUserSelect: 'text' }}
+          >
             {formatCurrency(metrics.avgTicket)}
           </div>
           <p className="text-xs text-muted-foreground mt-1">Por vídeo editado</p>
@@ -98,7 +104,10 @@ export function SummaryCards() {
           <Clock className="h-4 w-4 text-chart-4" strokeWidth={1.5} />
         </CardHeader>
         <CardContent>
-          <div className="text-3xl font-bold font-mono tracking-tight text-foreground">
+          <div
+            className="text-3xl font-bold font-mono tracking-tight text-foreground select-text"
+            style={{ userSelect: 'text', WebkitUserSelect: 'text' }}
+          >
             {formatNumber(metrics.totalHours)}h
           </div>
           <p className="text-xs text-muted-foreground mt-1">Horas produtivas</p>

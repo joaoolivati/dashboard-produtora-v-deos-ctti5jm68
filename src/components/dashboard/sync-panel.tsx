@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { RefreshCw, Clock, History, CheckCircle2, XCircle } from 'lucide-react'
+import { RefreshCw, Clock, History, CheckCircle2, XCircle, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { format } from 'date-fns'
 import { Button } from '@/components/ui/button'
@@ -56,9 +56,7 @@ export function SyncPanel() {
           'Nenhum dado encontrado na planilha. Verifique se a aba BASE_GERAL contém dados.',
         )
       } else {
-        toast.success(
-          `Sincronização concluída: ${result.rowsRead} linhas lidas, ${result.rowsSaved} registros gravados.`,
-        )
+        toast.success('Planilha sincronizada.')
       }
       loadHistory()
     } catch (err: any) {
@@ -80,6 +78,19 @@ export function SyncPanel() {
 
   return (
     <>
+      {syncing && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-background/80 backdrop-blur-md">
+          <div className="flex flex-col items-center gap-4 rounded-2xl border border-border/50 bg-card/80 p-8 shadow-2xl">
+            <Loader2 className="h-10 w-10 animate-spin text-primary" />
+            <div className="text-center">
+              <p className="text-lg font-semibold text-foreground">Sincronizando planilha…</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Isso pode levar alguns minutos. Não feche a página.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
       <Card className="border-border/40 bg-card/50 backdrop-blur">
         <CardContent className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
           <div className="flex flex-col gap-2">
