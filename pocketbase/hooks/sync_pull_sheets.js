@@ -47,16 +47,49 @@ routerAdd(
 
     var parseDate = (raw) => {
       var d = (raw || '').toString().trim()
-      if (!d) return null
-      var parts = d.split(/[\/\-]/)
-      if (parts.length === 3) {
-        var day = parts[0].padStart(2, '0')
-        var month = parts[1].padStart(2, '0')
-        var year = parts[2]
-        if (year.length === 2) year = '20' + year
-        return year + '-' + month + '-' + day + ' 12:00:00'
+      if (!d) return ''
+      var isoMatch = d.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/)
+      if (isoMatch) {
+        var y = isoMatch[1]
+        var mo = parseInt(isoMatch[2], 10)
+        var dy = parseInt(isoMatch[3], 10)
+        if (mo < 1 || mo > 12 || dy < 1 || dy > 31) return ''
+        return (
+          y + '-' + String(mo).padStart(2, '0') + '-' + String(dy).padStart(2, '0') + ' 12:00:00'
+        )
       }
-      return null
+      var brMatch = d.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/)
+      if (brMatch) {
+        var day = parseInt(brMatch[1], 10)
+        var month = parseInt(brMatch[2], 10)
+        var year = brMatch[3]
+        if (year.length === 2) year = '20' + year
+        if (month < 1 || month > 12 || day < 1 || day > 31) return ''
+        return (
+          year +
+          '-' +
+          String(month).padStart(2, '0') +
+          '-' +
+          String(day).padStart(2, '0') +
+          ' 12:00:00'
+        )
+      }
+      return ''
+    }
+
+    var trySave = (record) => {
+      try {
+        $app.saveNoValidate(record)
+        return { ok: true, semData: false }
+      } catch (firstErr) {
+        try {
+          record.set('data_servico', '')
+          $app.saveNoValidate(record)
+          return { ok: true, semData: true }
+        } catch (retryErr) {
+          return { ok: false, semData: false, error: String(firstErr) }
+        }
+      }
     }
 
     var parseValores = (raw) => {
@@ -333,9 +366,16 @@ routerAdd(
           existing.set('editor', cellStr(row, 8))
           existing.set('mes_faturamento', cellStr(row, 9))
           existing.set('id_servico', exiId)
-          $app.saveNoValidate(existing)
-          updated++
-          monthStats[mes].atualizados++
+          var saveResult = trySave(existing)
+          if (saveResult.ok) {
+            updated++
+            monthStats[mes].atualizados++
+            if (saveResult.semData) {
+              monthStats[mes].erros.push('ID ' + exiId + ' (linha ' + (i + 1) + '): salvo sem data')
+            }
+          } else {
+            throw new Error(saveResult.error)
+          }
         } else {
           var record = new Record(col)
           record.set('data_servico', parseDate(cellStr(row, 0)))
@@ -349,10 +389,17 @@ routerAdd(
           record.set('editor', cellStr(row, 8))
           record.set('mes_faturamento', cellStr(row, 9))
           record.set('id_servico', exiId)
-          $app.saveNoValidate(record)
-          created++
-          monthStats[mes].criados++
-          existingMap[exiId] = record
+          var saveResult = trySave(record)
+          if (saveResult.ok) {
+            created++
+            monthStats[mes].criados++
+            existingMap[exiId] = record
+            if (saveResult.semData) {
+              monthStats[mes].erros.push('ID ' + exiId + ' (linha ' + (i + 1) + '): salvo sem data')
+            }
+          } else {
+            throw new Error(saveResult.error)
+          }
         }
       } catch (recordErr) {
         failedCount++
@@ -455,6 +502,23 @@ routerAdd(
       ' | Registros no banco: ' +
       dbCount
 
+    var errorLog = summary
+    if (failedDetails.length > 0) {
+      var detailLines = []
+      var maxDetails = Math.min(failedDetails.length, 20)
+      for (var fd2 = 0; fd2 < maxDetails; fd2++) {
+        detailLines.push(
+          'ID ' +
+            failedDetails[fd2].id_servico +
+            ' (linha ' +
+            failedDetails[fd2].linha +
+            '): ' +
+            failedDetails[fd2].erro,
+        )
+      }
+      errorLog += ' | Falhas (' + failedDetails.length + '): ' + detailLines.join('; ')
+    }
+
     if (forceRebuild) {
       var acceptancePassed = true
       var acceptanceDetails = []
@@ -524,7 +588,7 @@ routerAdd(
         acceptancePassed ? 'success' : 'failed',
         totalRead,
         created + updated,
-        summary + ' | Aceitacao: ' + acceptanceStatus + ' - ' + acceptanceDetails.join('; '),
+        errorLog + ' | Aceitacao: ' + acceptanceStatus + ' - ' + acceptanceDetails.join('; '),
       )
 
       $app
@@ -561,7 +625,7 @@ routerAdd(
       })
     }
 
-    logSync('success', totalRead, created + updated, summary)
+    logSync('success', totalRead, created + updated, errorLog)
     $app
       .logger()
       .info(
