@@ -153,6 +153,8 @@ cronAdd('sync_google_sheets', '0 6 * * *', () => {
   var created = 0
   var updated = 0
   var skippedCount = 0
+  var failedCount = 0
+  var failedDetails = []
   var monthStats = {}
 
   for (var i = 1; i < values.length; i++) {
@@ -166,7 +168,9 @@ cronAdd('sync_google_sheets', '0 6 * * *', () => {
         criados: 0,
         atualizados: 0,
         puladas: 0,
+        falhadas: 0,
         motivos: [],
+        erros: [],
         somaValores: 0,
       }
     }
@@ -175,9 +179,7 @@ cronAdd('sync_google_sheets', '0 6 * * *', () => {
     if (!exiId) {
       skippedCount++
       monthStats[mes].puladas++
-      var motivoSemId = 'sem ID_SERVICO (linha ' + (i + 1) + ')'
-      monthStats[mes].motivos.push(motivoSemId)
-      $app.logger().info('sync_google_sheets: pulado: sem ID_SERVICO - linha ' + (i + 1))
+      monthStats[mes].motivos.push('sem ID_SERVICO (linha ' + (i + 1) + ')')
       continue
     }
 
@@ -220,10 +222,10 @@ cronAdd('sync_google_sheets', '0 6 * * *', () => {
         existingMap[exiId] = record
       }
     } catch (recordErr) {
-      skippedCount++
-      monthStats[mes].puladas++
-      var motivoErro = 'ID ' + exiId + ' (linha ' + (i + 1) + '): ' + String(recordErr)
-      monthStats[mes].motivos.push(motivoErro)
+      failedCount++
+      monthStats[mes].falhadas++
+      failedDetails.push({ id_servico: exiId, linha: i + 1, erro: String(recordErr) })
+      monthStats[mes].erros.push('ID ' + exiId + ' (linha ' + (i + 1) + '): ' + String(recordErr))
       $app
         .logger()
         .error(
@@ -242,7 +244,7 @@ cronAdd('sync_google_sheets', '0 6 * * *', () => {
     $app
       .logger()
       .info(
-        'sync_google_sheets: Mês ' +
+        'sync_google_sheets: Mes ' +
           mesKey +
           ': lidas ' +
           s.lidas +
@@ -252,28 +254,59 @@ cronAdd('sync_google_sheets', '0 6 * * *', () => {
           s.atualizados +
           ', puladas ' +
           s.puladas +
-          ' (motivos: ' +
+          ', falhadas ' +
+          s.falhadas +
+          ', soma valores R$ ' +
+          s.somaValores.toFixed(2).replace('.', ',') +
+          ' (motivos puladas: ' +
           (s.motivos.length > 0 ? s.motivos.join('; ') : 'nenhum') +
-          '), soma valores R$ ' +
-          s.somaValores.toFixed(2).replace('.', ','),
+          ')' +
+          ' (erros falhas: ' +
+          (s.erros.length > 0 ? s.erros.join('; ') : 'nenhum') +
+          ')',
       )
   }
 
-  var totalRead = created + updated + skippedCount
+  var totalRead = values.length - 1
   var dbCount = 0
   try {
     dbCount = $app.countRecords('servicos')
   } catch (countErr) {
     $app.logger().error('sync_google_sheets: erro ao contar registros: ' + String(countErr))
   }
+
   $app
     .logger()
     .info(
-      'sync_google_sheets: Total geral de linhas lidas: ' +
+      'sync_google_sheets: Total geral - linhas lidas: ' +
         totalRead +
-        ' | Total de registros no banco: ' +
+        ' | criados: ' +
+        created +
+        ' | atualizados: ' +
+        updated +
+        ' | ignorados (sem ID): ' +
+        skippedCount +
+        ' | falhados: ' +
+        failedCount +
+        ' | registros no banco: ' +
         dbCount,
     )
+
+  if (failedDetails.length > 0) {
+    $app.logger().info('sync_google_sheets: Detalhes das falhas (' + failedDetails.length + '):')
+    for (var fd = 0; fd < failedDetails.length; fd++) {
+      $app
+        .logger()
+        .info(
+          'sync_google_sheets:   ID ' +
+            failedDetails[fd].id_servico +
+            ' (linha ' +
+            failedDetails[fd].linha +
+            '): ' +
+            failedDetails[fd].erro,
+        )
+    }
+  }
 
   var summary =
     'Linhas lidas: ' +
@@ -282,11 +315,14 @@ cronAdd('sync_google_sheets', '0 6 * * *', () => {
     created +
     ' | Atualizados: ' +
     updated +
-    ' | Ignorados: ' +
+    ' | Ignorados (sem ID): ' +
     skippedCount +
+    ' | Falhados: ' +
+    failedCount +
     ' | Registros no banco: ' +
     dbCount
   logSync('success', totalRead, created + updated, summary)
+
   $app
     .logger()
     .info(
@@ -295,6 +331,8 @@ cronAdd('sync_google_sheets', '0 6 * * *', () => {
         ', atualizados: ' +
         updated +
         ', ignorados: ' +
-        skippedCount,
+        skippedCount +
+        ', falhados: ' +
+        failedCount,
     )
 })

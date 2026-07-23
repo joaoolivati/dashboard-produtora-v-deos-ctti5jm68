@@ -7,6 +7,7 @@ routerAdd(
       return e.badRequestError('Corpo da requisicao invalido')
     }
 
+    var forceRebuild = rawBody.force === true
     var SPREADSHEET_ID = '1buDNmxDKscXwe7iGNSwYEAVcm7646dsPpMHTSPyYg-I'
     var RANGE = 'BASE_GERAL'
     var API_KEY = $secrets.get('GOOGLE_API_KEY')
@@ -18,7 +19,7 @@ routerAdd(
       '?key=' +
       API_KEY
 
-    $app.logger().info('sync_pull_sheets: sincronizacao manual iniciada')
+    $app.logger().info('sync_pull_sheets: sincronizacao iniciada (force=' + forceRebuild + ')')
 
     if (!API_KEY) {
       $app.logger().error('sync_pull_sheets: GOOGLE_API_KEY nao configurado')
@@ -128,6 +129,7 @@ routerAdd(
         created: 0,
         updated: 0,
         skipped: 0,
+        failed: 0,
         dbCount: 0,
         status: 'success',
       })
@@ -157,6 +159,117 @@ routerAdd(
       return e.json(500, { error: 'Colecao servicos nao encontrada', status: 'error' })
     }
 
+    if (forceRebuild) {
+      var servicosColForDep = $app.findCollectionByNameOrId('servicos')
+      var servicosColId = servicosColForDep.id
+      var hasDeps = false
+
+      try {
+        var depRows = $app
+          .db()
+          .newQuery("SELECT name, fields FROM _collections WHERE name != 'servicos'")
+          .all()
+        for (var di = 0; di < depRows.length; di++) {
+          var depName = depRows[di]['name'] || ''
+          var depFieldsRaw = depRows[di]['fields'] || '[]'
+          var depFields
+          try {
+            depFields = JSON.parse(depFieldsRaw)
+          } catch (_) {
+            continue
+          }
+          for (var df = 0; df < depFields.length; df++) {
+            if (depFields[df].type === 'relation') {
+              var relColId = depFields[df].collectionId || ''
+              if (relColId === servicosColId) {
+                var depCount = 0
+                try {
+                  depCount = $app.countRecords(depName)
+                } catch (_) {}
+                if (depCount > 0) {
+                  hasDeps = true
+                  $app
+                    .logger()
+                    .error(
+                      'sync_pull_sheets: dependencia encontrada - ' +
+                        depName +
+                        ' com ' +
+                        depCount +
+                        ' registros referenciando servicos',
+                    )
+                }
+              }
+            }
+          }
+        }
+      } catch (sqlDepErr) {
+        $app
+          .logger()
+          .info(
+            'sync_pull_sheets: verificacao SQL de dependencias falhou, usando lista manual: ' +
+              String(sqlDepErr),
+          )
+        var manualCols = [
+          'users',
+          'sync_history',
+          'recurring_costs',
+          'monthly_costs',
+          'tax_settings',
+        ]
+        for (var mi = 0; mi < manualCols.length; mi++) {
+          try {
+            var mCol = $app.findCollectionByNameOrId(manualCols[mi])
+            var mFields = mCol.fields.all()
+            for (var mf = 0; mf < mFields.length; mf++) {
+              if (mFields[mf].type === 'relation' && mFields[mf].collectionId === servicosColId) {
+                var mCount = $app.countRecords(manualCols[mi])
+                if (mCount > 0) {
+                  hasDeps = true
+                  $app
+                    .logger()
+                    .error(
+                      'sync_pull_sheets: dependencia encontrada - ' +
+                        manualCols[mi] +
+                        ' com ' +
+                        mCount +
+                        ' registros',
+                    )
+                }
+              }
+            }
+          } catch (_) {}
+        }
+      }
+
+      if (hasDeps) {
+        logSync('error', 0, 0, 'Dependencias encontradas em outras colecoes. Purge abortado.')
+        return e.json(409, {
+          error: 'Dependencias encontradas em outras colecoes. Purge abortado por seguranca.',
+          status: 'error',
+        })
+      }
+
+      $app.logger().info('sync_pull_sheets: nenhuma dependencia encontrada, prosseguindo com purge')
+      try {
+        $app.db().newQuery('DELETE FROM servicos').execute()
+        $app.logger().info('sync_pull_sheets: colecao servicos purgada (DELETE FROM)')
+      } catch (purgeSqlErr) {
+        $app
+          .logger()
+          .info('sync_pull_sheets: DELETE FROM falhou, usando batch delete: ' + String(purgeSqlErr))
+        while (true) {
+          var delBatch = $app.findRecordsByFilter('servicos', "id != ''", 'created', 500, 0)
+          if (delBatch.length === 0) break
+          for (var dbi = 0; dbi < delBatch.length; dbi++) {
+            try {
+              $app.delete(delBatch[dbi])
+            } catch (_) {}
+          }
+        }
+        $app.logger().info('sync_pull_sheets: colecao servicos purgada (batch delete)')
+      }
+    }
+
     var existingMap = {}
     var loadOffset = 0
     while (true) {
@@ -173,6 +286,8 @@ routerAdd(
     var created = 0
     var updated = 0
     var skippedCount = 0
+    var failedCount = 0
+    var failedDetails = []
     var monthStats = {}
 
     for (var i = 1; i < values.length; i++) {
@@ -186,7 +301,9 @@ routerAdd(
           criados: 0,
           atualizados: 0,
           puladas: 0,
+          falhadas: 0,
           motivos: [],
+          erros: [],
           somaValores: 0,
         }
       }
@@ -195,9 +312,7 @@ routerAdd(
       if (!exiId) {
         skippedCount++
         monthStats[mes].puladas++
-        var motivoSemId = 'sem ID_SERVICO (linha ' + (i + 1) + ')'
-        monthStats[mes].motivos.push(motivoSemId)
-        $app.logger().info('sync_pull_sheets: pulado: sem ID_SERVICO - linha ' + (i + 1))
+        monthStats[mes].motivos.push('sem ID_SERVICO (linha ' + (i + 1) + ')')
         continue
       }
 
@@ -240,10 +355,10 @@ routerAdd(
           existingMap[exiId] = record
         }
       } catch (recordErr) {
-        skippedCount++
-        monthStats[mes].puladas++
-        var motivoErro = 'ID ' + exiId + ' (linha ' + (i + 1) + '): ' + String(recordErr)
-        monthStats[mes].motivos.push(motivoErro)
+        failedCount++
+        monthStats[mes].falhadas++
+        failedDetails.push({ id_servico: exiId, linha: i + 1, erro: String(recordErr) })
+        monthStats[mes].erros.push('ID ' + exiId + ' (linha ' + (i + 1) + '): ' + String(recordErr))
         $app
           .logger()
           .error(
@@ -262,7 +377,7 @@ routerAdd(
       $app
         .logger()
         .info(
-          'sync_pull_sheets: Mês ' +
+          'sync_pull_sheets: Mes ' +
             mesKey +
             ': lidas ' +
             s.lidas +
@@ -272,28 +387,59 @@ routerAdd(
             s.atualizados +
             ', puladas ' +
             s.puladas +
-            ' (motivos: ' +
+            ', falhadas ' +
+            s.falhadas +
+            ', soma valores R$ ' +
+            s.somaValores.toFixed(2).replace('.', ',') +
+            ' (motivos puladas: ' +
             (s.motivos.length > 0 ? s.motivos.join('; ') : 'nenhum') +
-            '), soma valores R$ ' +
-            s.somaValores.toFixed(2).replace('.', ','),
+            ')' +
+            ' (erros falhas: ' +
+            (s.erros.length > 0 ? s.erros.join('; ') : 'nenhum') +
+            ')',
         )
     }
 
-    var totalRead = created + updated + skippedCount
+    var totalRead = values.length - 1
     var dbCount = 0
     try {
       dbCount = $app.countRecords('servicos')
     } catch (countErr) {
       $app.logger().error('sync_pull_sheets: erro ao contar registros: ' + String(countErr))
     }
+
     $app
       .logger()
       .info(
-        'sync_pull_sheets: Total geral de linhas lidas: ' +
+        'sync_pull_sheets: Total geral - linhas lidas: ' +
           totalRead +
-          ' | Total de registros no banco: ' +
+          ' | criados: ' +
+          created +
+          ' | atualizados: ' +
+          updated +
+          ' | ignorados (sem ID): ' +
+          skippedCount +
+          ' | falhados: ' +
+          failedCount +
+          ' | registros no banco: ' +
           dbCount,
       )
+
+    if (failedDetails.length > 0) {
+      $app.logger().info('sync_pull_sheets: Detalhes das falhas (' + failedDetails.length + '):')
+      for (var fd = 0; fd < failedDetails.length; fd++) {
+        $app
+          .logger()
+          .info(
+            'sync_pull_sheets:   ID ' +
+              failedDetails[fd].id_servico +
+              ' (linha ' +
+              failedDetails[fd].linha +
+              '): ' +
+              failedDetails[fd].erro,
+          )
+      }
+    }
 
     var summary =
       'Linhas lidas: ' +
@@ -302,10 +448,119 @@ routerAdd(
       created +
       ' | Atualizados: ' +
       updated +
-      ' | Ignorados: ' +
+      ' | Ignorados (sem ID): ' +
       skippedCount +
+      ' | Falhados: ' +
+      failedCount +
       ' | Registros no banco: ' +
       dbCount
+
+    if (forceRebuild) {
+      var acceptancePassed = true
+      var acceptanceDetails = []
+
+      if (dbCount !== 12002) {
+        acceptancePassed = false
+        acceptanceDetails.push('Contagem de registros: ' + dbCount + ' (esperado: 12002)')
+      } else {
+        acceptanceDetails.push('Contagem de registros: 12002 (OK)')
+      }
+
+      var requiredIds = [
+        'EXI-0924-10310',
+        'EXI-0924-10311',
+        'EXI-0526-05841',
+        'EXI-0325-11098',
+        'EXI-0623-04245',
+        'EXI-0623-04249',
+        'EXI-0625-10106',
+        'EXI-0625-10130',
+      ]
+      var missingIds = []
+      for (var ri = 0; ri < requiredIds.length; ri++) {
+        try {
+          $app.findFirstRecordByData('servicos', 'id_servico', requiredIds[ri])
+        } catch (_) {
+          missingIds.push(requiredIds[ri])
+        }
+      }
+      if (missingIds.length > 0) {
+        acceptancePassed = false
+        acceptanceDetails.push('IDs ausentes: ' + missingIds.join(', '))
+      } else {
+        acceptanceDetails.push('Todos os 8 IDs obrigatórios encontrados (OK)')
+      }
+
+      var maioSum = 0
+      try {
+        var allServicos = $app.findRecordsByFilter('servicos', "id != ''", 'created', 100000, 0)
+        for (var ms = 0; ms < allServicos.length; ms++) {
+          var mesVal = (allServicos[ms].getString('mes_faturamento') || '').toUpperCase()
+          if (mesVal === 'MAIO/26' || mesVal === 'MAIO/2026') {
+            var val = allServicos[ms].get('valores')
+            maioSum += typeof val === 'number' ? val : parseFloat(val) || 0
+          }
+        }
+      } catch (maioErr) {
+        $app.logger().error('sync_pull_sheets: erro ao calcular soma Maio/26: ' + String(maioErr))
+      }
+
+      if (Math.abs(maioSum - 30093) > 1) {
+        acceptancePassed = false
+        acceptanceDetails.push(
+          'Soma Maio/26: R$ ' + maioSum.toFixed(2).replace('.', ',') + ' (esperado: R$ 30.093,00)',
+        )
+      } else {
+        acceptanceDetails.push('Soma Maio/26: R$ ' + maioSum.toFixed(2).replace('.', ',') + ' (OK)')
+      }
+
+      var acceptanceStatus = acceptancePassed ? 'PASSED' : 'FAILED'
+      $app.logger().info('sync_pull_sheets: Aceitacao: ' + acceptanceStatus)
+      for (var ad = 0; ad < acceptanceDetails.length; ad++) {
+        $app.logger().info('sync_pull_sheets:   ' + acceptanceDetails[ad])
+      }
+
+      logSync(
+        acceptancePassed ? 'success' : 'failed',
+        totalRead,
+        created + updated,
+        summary + ' | Aceitacao: ' + acceptanceStatus + ' - ' + acceptanceDetails.join('; '),
+      )
+
+      $app
+        .logger()
+        .info(
+          'sync_pull_sheets: rebuild concluido - criados: ' +
+            created +
+            ', atualizados: ' +
+            updated +
+            ', ignorados: ' +
+            skippedCount +
+            ', falhados: ' +
+            failedCount +
+            ', aceitacao: ' +
+            acceptanceStatus,
+        )
+
+      return e.json(200, {
+        message: acceptancePassed
+          ? 'Rebuild concluido com sucesso - criterios de aceitacao atendidos'
+          : 'Rebuild concluido mas criterios de aceitacao NAO atendidos',
+        rowsRead: totalRead,
+        rowsSaved: created + updated,
+        created: created,
+        updated: updated,
+        skipped: skippedCount,
+        failed: failedCount,
+        dbCount: dbCount,
+        status: acceptancePassed ? 'success' : 'warning',
+        acceptance: {
+          passed: acceptancePassed,
+          details: acceptanceDetails,
+        },
+      })
+    }
+
     logSync('success', totalRead, created + updated, summary)
     $app
       .logger()
@@ -315,7 +570,9 @@ routerAdd(
           ', atualizados: ' +
           updated +
           ', ignorados: ' +
-          skippedCount,
+          skippedCount +
+          ', falhados: ' +
+          failedCount,
       )
 
     return e.json(200, {
@@ -325,6 +582,7 @@ routerAdd(
       created: created,
       updated: updated,
       skipped: skippedCount,
+      failed: failedCount,
       dbCount: dbCount,
       status: 'success',
     })
